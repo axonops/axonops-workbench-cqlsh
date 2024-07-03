@@ -117,9 +117,9 @@ class Py311SaferScanner(SaferScannerBase):
         self.scanner = re._compiler.compile(p)
 
 
-SaferScanner = Py36SaferScanner if six.PY3 else Py2SaferScanner
 if version_info >= (3, 11):
     SaferScanner = Py311SaferScanner
 elif version_info >= (3, 8):
     SaferScanner = Py38SaferScanner
-SaferScanner = Py38SaferScanner if version_info >= (3, 8) else SaferScanner
+else:
+    SaferScanner = Py36SaferScanner if version_info >= (3, 6) else Py2SaferScanner
