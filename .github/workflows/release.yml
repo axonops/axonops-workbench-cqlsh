@@ -11,8 +11,8 @@ defaults:
     shell: bash
 
 jobs:
-  build_and_test:
-    name: Build on ${{ matrix.os }} with ${{ matrix.compiler }}.
+  build:
+    name: Build on ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -23,6 +23,9 @@ jobs:
 
           - os: macos-latest
             target: Macos
+
+          - os: macos-14-large
+            target: x86_64-apple-darwin
 
           - os: windows-latest
             target: Windows
