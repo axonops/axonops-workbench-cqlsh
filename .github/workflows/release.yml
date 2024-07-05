@@ -27,6 +27,9 @@ jobs:
           - os: windows-latest
             target: Windows
 
+          # - os: macos-latest-large
+          #   target: Macos-ARM64
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -43,7 +46,7 @@ jobs:
           mkdir dist
           pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-$(uname -s)-$(uname -m)
           pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-$(uname -s)-$(uname -m)
-          pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator -n keys_generator-$(uname -s)-$(uname -m)
+          pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator.py -n keys_generator-$(uname -s)-$(uname -m)
 
       - name: Release
         uses: softprops/action-gh-release@v2
