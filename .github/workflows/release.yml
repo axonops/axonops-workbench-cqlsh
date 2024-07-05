@@ -27,8 +27,8 @@ jobs:
           - os: windows-latest
             target: Windows
 
-          # - os: macos-latest-large
-          #   target: Macos-ARM64
+          - os: [self-hosted, linux, ARM64]
+            target: Linux
 
     steps:
       - name: Checkout Repository
