@@ -40,15 +40,15 @@ jobs:
         run: |
           pip3 install -r requirements.txt
 
-          pyinstaller --noconfirm --clean --noupx --distpath cqlsh-407-$(uname -s)-$(uname -m) --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407
-          pyinstaller --noconfirm --clean --noupx --distpath cqlsh-410-$(uname -s)-$(uname -m) --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410
-          pyinstaller --noconfirm --clean --noupx --distpath keys_generator-$(uname -s)-$(uname -m) --onefile keys_generator/keys_generator.py
+          mkdir dist
+          pyinstaller --noconfirm --clean --noupx --distpath dist/cqlsh-407-$(uname -s)-$(uname -m) --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407
+          pyinstaller --noconfirm --clean --noupx --distpath dist/cqlsh-410-$(uname -s)-$(uname -m) --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410
+          pyinstaller --noconfirm --clean --noupx --distpath dist/keys_generator-$(uname -s)-$(uname -m) --onefile keys_generator/keys_generator.py
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            cqlsh-407-*
-            keys_generator*
+            dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
