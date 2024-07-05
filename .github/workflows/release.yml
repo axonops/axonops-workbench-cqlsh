@@ -41,9 +41,9 @@ jobs:
           pip3 install -r requirements.txt
 
           mkdir dist
-          pyinstaller --noconfirm --clean --noupx --distpath dist/cqlsh-407-$(uname -s)-$(uname -m) --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407
-          pyinstaller --noconfirm --clean --noupx --distpath dist/cqlsh-410-$(uname -s)-$(uname -m) --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410
-          pyinstaller --noconfirm --clean --noupx --distpath dist/keys_generator-$(uname -s)-$(uname -m) --onefile keys_generator/keys_generator.py
+          pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-$(uname -s)-$(uname -m)
+          pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-$(uname -s)-$(uname -m)
+          pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator -n keys_generator-$(uname -s)-$(uname -m)
 
       - name: Release
         uses: softprops/action-gh-release@v2
