@@ -40,7 +40,7 @@ jobs:
 
       - name: Setup Python v3.12
         uses: actions/setup-python@v5
-        if: ${{ matrix.arch != 'arm64' }}
+        if: ${{ matrix.target != 'Linux' }}
         with:
           python-version: 3.12
 
