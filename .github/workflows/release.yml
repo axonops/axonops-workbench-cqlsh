@@ -16,9 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
         include:
-          - os: ubuntu-latest
+          - os: [self-hosted, linux, X64]
             target: Linux
 
           - os: macos-latest
@@ -32,6 +31,7 @@ jobs:
 
           - os: [self-hosted, linux, ARM64]
             target: Linux
+            arch: arm64
 
     steps:
       - name: Checkout Repository
@@ -39,19 +39,50 @@ jobs:
 
       - name: Setup Python v3.12
         uses: actions/setup-python@v5
+        if: ${{ matrix.target != 'Linux' }}
         with:
           python-version: 3.12
 
+      # statix won't install in Windows nor we need it
+      - name: Install dependencies
+        run: |
+          pip3 install wheel setuptools
+
+          if [[ "$(uname -s)" =~ "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get -y install patchelf scons
+            pip3 install staticx==0.14.1
+          fi
+
+      # nasty hack to use our local python is avaialble. The one provided by GitHub does not appear
+      # to work for ARM64 Linux
       - name: Build binaries for cqlsh and keys_generator
         run: |
+          set -x
+          if [ -x /opt/py312/bin/pip3 ]; then
+            source /opt/py312/bin/activate
+            pip3 install staticx==0.14.1
+          fi
+
           pip3 install -r requirements.txt
 
-          mkdir dist
-          pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-$(uname -s)-$(uname -m)
-          pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-$(uname -s)-$(uname -m)
-          pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator.py -n keys_generator-$(uname -s)-$(uname -m)
+          mkdir -p dist
 
-      - name: Release
+          if [[ "$(uname -s)" =~ "Linux" ]]; then
+            pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-dyn-$(uname -s)-$(uname -m)
+            staticx dist/cqlsh-407-dyn-$(uname -s)-$(uname -m) cqlsh-407-$(uname -s)-$(uname -m)
+            pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-dyn-$(uname -s)-$(uname -m)
+            staticx dist/cqlsh-410-dyn-$(uname -s)-$(uname -m) dist/cqlsh-410-$(uname -s)-$(uname -m)
+            pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator.py -n keys_generator-dyn-$(uname -s)-$(uname -m)
+            staticx dist/keys_generator-dyn-$(uname -s)-$(uname -m) dist/keys_generator-$(uname -s)-$(uname -m)
+          else
+            pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-$(uname -s)-$(uname -m)
+            pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-$(uname -s)-$(uname -m)
+            pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator.py -n keys_generator-$(uname -s)-$(uname -m)
+          fi
+          rm -f dist/*-dyn-*
+
+      - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
