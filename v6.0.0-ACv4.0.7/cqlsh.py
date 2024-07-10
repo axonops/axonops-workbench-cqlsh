@@ -26,7 +26,7 @@ original_exit = sys.exit
 def custom_exit(*args, **kwargs):
     # If it's a test process then make sure to print the keyword for the app
     if '--test' in sys.argv:
-        print("KEYWORD:TEST-COMPLETED")
+        print("KEYWORD:TEST:COMPLETED")
 
     # Call the original sys.exit
     original_exit(*args, **kwargs)
@@ -535,7 +535,7 @@ class Shell(cmd.Cmd):
             global start_printed
             if start_printed is False:
                 start_printed = True
-                print("KEYWORD:CQLSH-STARTED")
+                print("KEYWORD:CQLSH:STARTED")
         else:
             self.show_line_nums = True
         self.stdin = stdin
@@ -617,7 +617,7 @@ class Shell(cmd.Cmd):
             info.setdefault("datacenters", datacenters)
 
             print(info)
-            print("KEYWORD:TEST-COMPLETED")
+            print("KEYWORD:TEST:COMPLETED")
             self.conn.shutdown()
             self.do_exit()
             sys.exit()
@@ -833,7 +833,7 @@ class Shell(cmd.Cmd):
         self.statement.truncate(0)
         self.statement.seek(0)
         self.empty_lines = 0
-        print("KEYWORD:OUTPUT-FINISHED")
+        print("KEYWORD:OUTPUT:COMPLETED:ALL")
 
     def reset_prompt(self):
         if self.current_keyspace is None:
@@ -944,7 +944,7 @@ class Shell(cmd.Cmd):
                         metadata_id = re.findall(r'\((.+)\)', line)
                         if len(metadata_id) <= 0:
                             print(axonOpsDeveloperWorkbench.printMetadata(self.session))
-                            print("KEYWORD:PROCESS-COMPLETED")
+                            print("KEYWORD:PROCESS:COMPLETED")
                         else:
                             metadata_id = metadata_id[0]
                             printProcess = threading.Thread(target=axonOpsDeveloperWorkbench.printMetadataBackground, args=(metadata_id, self.session))
@@ -1000,9 +1000,9 @@ class Shell(cmd.Cmd):
         return statementtext
 
     def onecmd(self, statementtext):
-        if len(re.findall("KEYWORD:IGNORE-THIS-STATEMENT-\d+", statementtext)) > 0:
+        if len(re.findall("KEYWORD:STATEMENT:IGNORE-\d+", statementtext)) > 0:
             return True
-            
+
         """
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
@@ -1022,6 +1022,16 @@ class Shell(cmd.Cmd):
             self.printerr(' {0}^'.format(' ' * e.charnum))
             return True
 
+        try:
+            endtoken_count = sum(1 for sublist in statements if any(token[0] == 'endtoken' for token in sublist))
+            print(f"KEYWORD:STATEMENTS:COUNT:{endtoken_count}")
+
+            identifiers = [next((token[1] for token in sublist if token[0] in ('identifier', 'reserved_identifier')), None) for sublist in statements]
+            identifiers = [identifier for identifier in identifiers if identifier is not None]  # Remove None values
+            print(f"KEYWORD:STATEMENTS:IDENTIFIERS:[{','.join(identifiers)}]")
+        except:
+            pass
+
         while statements and not statements[-1]:
             statements = statements[:-1]
         if not statements:
@@ -1030,6 +1040,7 @@ class Shell(cmd.Cmd):
             self.set_continue_prompt()
             return
         for st in statements:
+            print("KEYWORD:OUTPUT:STARTED")
             try:
                 self.handle_statement(st, statementtext)
             except Exception as e:
@@ -1037,6 +1048,7 @@ class Shell(cmd.Cmd):
                     traceback.print_exc()
                 else:
                     self.printerr(e)
+            print("KEYWORD:OUTPUT:COMPLETED")
         return True
 
     def handle_eof(self):
@@ -1105,7 +1117,6 @@ class Shell(cmd.Cmd):
 
     def perform_statement(self, statement):
         statement = ensure_text(statement)
-
         stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.page_size if self.use_paging else None)
         success, future = self.perform_simple_statement(stmt)
 
@@ -2087,8 +2098,9 @@ class Shell(cmd.Cmd):
             shownum = self.show_line_nums
         if shownum:
             text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
+        print("KEYWORD:ERROR:STARTED")
         self.writeresult(text, color, newline=newline, out=sys.stderr)
-        print("KEYWORD:ERROR")
+        print("KEYWORD:ERROR:COMPLETED")
 
     def stop_coverage(self):
         if self.coverage and self.cov is not None:
@@ -2470,15 +2482,15 @@ def main(options, hostname, port):
                       encoding=options.encoding)
     except KeyboardInterrupt:
         if hasattr(options, "test"):
-            print("KEYWORD:TEST-COMPLETED")
+            print("KEYWORD:TEST:COMPLETED")
         sys.exit('Connection aborted.')
     except CQL_ERRORS as e:
         if hasattr(options, "test"):
-            print("KEYWORD:TEST-COMPLETED")
+            print("KEYWORD:TEST:COMPLETED")
         sys.exit('Connection error: %s' % (e,))
     except VersionNotSupported as e:
         if hasattr(options, "test"):
-            print("KEYWORD:TEST-COMPLETED")
+            print("KEYWORD:TEST:COMPLETED")
         sys.exit('Unsupported CQL version: %s' % (e,))
     if options.debug:
         shell.debug = True
