@@ -50,9 +50,8 @@ jobs:
             sudo apt-get update
             sudo apt-get -y install patchelf scons
           fi
-          if [ -x /home/github/bin/pip3 ]; then
-            source /home/github/bin/activate
-            export PATH=/home/github/bin:$PATH
+          if [ -x /home/github/py312/bin/pip3 ]; then
+            source /home/github/py312/bin/activate
             pip3 install wheel setuptools
             pip3 install staticx==0.14.1
             pip3 install wheel setuptools
@@ -67,9 +66,8 @@ jobs:
       - name: Build binaries for cqlsh and keys_generator
         run: |
           set -x
-          if [ -x /home/github/bin/pip3 ]; then
-            source /home/github/bin/activate
-            export PATH=/home/github/bin:$PATH
+          if [ -x /home/github/py312/bin/pip3 ]; then
+            source /home/github/py312/bin/activate
           fi
 
           mkdir -p dist
