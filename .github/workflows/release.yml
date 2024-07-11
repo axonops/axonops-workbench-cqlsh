@@ -70,6 +70,7 @@ jobs:
             source /home/github/bin/activate
           fi
 
+          echo $PATH
           mkdir -p dist
 
           if [[ "$(uname -s)" =~ "Linux" ]]; then
