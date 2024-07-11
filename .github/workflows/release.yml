@@ -46,12 +46,20 @@ jobs:
       # statix won't install in Windows nor we need it
       - name: Install dependencies
         run: |
-          pip3 install wheel setuptools
-
           if [[ "$(uname -s)" =~ "Linux" ]]; then
             sudo apt-get update
             sudo apt-get -y install patchelf scons
           fi
+          if [ -x /home/github/bin/pip3 ]; then
+            source /home/github/bin/activate
+            pip3 install wheel setuptools
+            pip3 install staticx==0.14.1
+            pip3 install wheel setuptools
+          else
+            pip3 install wheel setuptools
+          fi
+
+          pip3 install -r requirements.txt
 
       # nasty hack to use our local python is avaialble. The one provided by GitHub does not appear
       # to work for ARM64 Linux
@@ -60,10 +68,7 @@ jobs:
           set -x
           if [ -x /home/github/bin/pip3 ]; then
             source /home/github/bin/activate
-            pip3 install staticx==0.14.1
           fi
-
-          pip3 install -r requirements.txt
 
           mkdir -p dist
 
