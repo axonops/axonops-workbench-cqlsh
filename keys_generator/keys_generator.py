@@ -18,6 +18,7 @@
 from platform import system
 from keyring import get_password, set_password, set_keyring, backends
 from Crypto.PublicKey import RSA
+import os
 
 if system() == 'Windows':
    set_keyring(backends.Windows.WinVaultKeyring()) 
@@ -30,7 +31,7 @@ publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"
 # If not, then create both keys
 if publicKey is None or privateKey is None or \
         len(publicKey) != 271 or len(privateKey) != 886:
-    keys = RSA.generate(1024)  # The longer the length, the stronger the keys are
+    keys = RSA.generate(int(os.getenv("RSA_KEY_LENGTH", 4096))
 
     # Get public and private keys,
     # encode them with base64, and convert them from bytes to string
