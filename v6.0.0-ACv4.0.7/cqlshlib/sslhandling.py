@@ -41,7 +41,7 @@ def ssl_settings(host, config_file, env=os.environ, varsManifest=None, varsValue
     either in the config file or as an environment variable.
     Environment variables override any options set in cqlsh config file.
     """
-    configs = configparser.SafeConfigParser()
+    configs = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
     configs.read(config_file)
 
     # For Cassandra Workbench Variables Feature
