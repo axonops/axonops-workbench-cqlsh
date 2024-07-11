@@ -1,5 +1,5 @@
 altgraph==0.17.4
-cassandra-driver==3.25.0
+cassandra-driver==3.29.1
 cffi==1.16.0
 click==8.1.7
 cryptography==42.0.4
