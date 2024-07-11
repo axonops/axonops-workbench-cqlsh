@@ -52,6 +52,7 @@ jobs:
           fi
           if [ -x /home/github/bin/pip3 ]; then
             source /home/github/bin/activate
+            export PATH=/home/github/bin:$PATH
             pip3 install wheel setuptools
             pip3 install staticx==0.14.1
             pip3 install wheel setuptools
@@ -68,9 +69,9 @@ jobs:
           set -x
           if [ -x /home/github/bin/pip3 ]; then
             source /home/github/bin/activate
+            export PATH=/home/github/bin:$PATH
           fi
 
-          echo $PATH
           mkdir -p dist
 
           if [[ "$(uname -s)" =~ "Linux" ]]; then
