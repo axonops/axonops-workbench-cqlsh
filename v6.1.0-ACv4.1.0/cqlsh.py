@@ -124,9 +124,6 @@ cqldocs = None
 cqlruleset = None
 
 
-if platform.system() == 'Windows':
-   set_keyring(backends.Windows.WinVaultKeyring())
-
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
 host (and optional port number) are given on the command line, they take

@@ -20,9 +20,6 @@ from keyring import get_password, set_password, set_keyring, backends
 from Crypto.PublicKey import RSA
 import os
 
-if system() == 'Windows':
-   set_keyring(backends.Windows.WinVaultKeyring()) 
-
 # First, attempt get the keys from the OS keychain
 publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"), \
                         get_password("AxonOpsDeveloperWorkbenchPrivateKey", "key")
