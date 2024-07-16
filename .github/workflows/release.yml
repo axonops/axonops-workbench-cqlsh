@@ -74,7 +74,7 @@ jobs:
 
           if [[ "$(uname -s)" =~ "Linux" ]]; then
             pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-dyn-$(uname -s)-$(uname -m)
-            staticx dist/cqlsh-407-dyn-$(uname -s)-$(uname -m) cqlsh-407-$(uname -s)-$(uname -m)
+            staticx dist/cqlsh-407-dyn-$(uname -s)-$(uname -m) dist/cqlsh-407-$(uname -s)-$(uname -m)
 
             pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-dyn-$(uname -s)-$(uname -m)
             staticx dist/cqlsh-410-dyn-$(uname -s)-$(uname -m) dist/cqlsh-410-$(uname -s)-$(uname -m)
