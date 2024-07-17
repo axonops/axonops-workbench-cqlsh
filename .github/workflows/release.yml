@@ -66,7 +66,6 @@ jobs:
       # to work for ARM64 Linux
       - name: Build binaries for cqlsh and keys_generator
         run: |
-          set -x
           if [ -x /home/github/py312/bin/pip3 ]; then
             source /home/github/py312/bin/activate
           fi
@@ -75,9 +74,11 @@ jobs:
 
           if [[ "$(uname -s)" =~ "Linux" ]]; then
             pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-dyn-$(uname -s)-$(uname -m)
-            staticx dist/cqlsh-407-dyn-$(uname -s)-$(uname -m) cqlsh-407-$(uname -s)-$(uname -m)
+            staticx dist/cqlsh-407-dyn-$(uname -s)-$(uname -m) dist/cqlsh-407-$(uname -s)-$(uname -m)
+
             pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-dyn-$(uname -s)-$(uname -m)
             staticx dist/cqlsh-410-dyn-$(uname -s)-$(uname -m) dist/cqlsh-410-$(uname -s)-$(uname -m)
+
             pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator.py -n keys_generator-dyn-$(uname -s)-$(uname -m)
             staticx dist/keys_generator-dyn-$(uname -s)-$(uname -m) dist/keys_generator-$(uname -s)-$(uname -m)
           else
@@ -86,11 +87,13 @@ jobs:
             pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator.py -n keys_generator-$(uname -s)-$(uname -m)
           fi
           rm -f dist/*-dyn-*
+          ls -l dist/
 
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*
+            dist/cqlsh*
+            dist/keys_generator*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
