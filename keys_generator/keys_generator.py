@@ -1,5 +1,5 @@
 #  © 2024 AxonOps Limited. All rights reserved.
- 
+
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
 #  You may obtain a copy of the License at
@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
- 
+
 # Cassandra Workbench tool to generate RSA keys,
 # that will be used to encrypt/decrypt credentials securely with cqlsh tool
 
@@ -21,7 +21,21 @@ from Crypto.PublicKey import RSA
 import os
 
 if system() == 'Windows':
-   set_keyring(backends.Windows.WinVaultKeyring()) 
+    try:
+        from keyring.backends.Windows import WinVaultKeyring
+        set_keyring(WinVaultKeyring())
+    except:
+        pass
+
+if system() == 'Linux':
+    try:
+        get_password("AxonOpsDeveloperWorkbenchPublicKey", "key")
+    except:
+        try:
+            from keyring.backends import libsecret
+            set_keyring(libsecret.Keyring())
+        except:
+            pass
 
 # First, attempt get the keys from the OS keychain
 publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"), \
@@ -31,7 +45,7 @@ publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"
 # If not, then create both keys
 if publicKey is None or privateKey is None or \
         len(publicKey) != 271 or len(privateKey) != 886:
-    keys = RSA.generate(int(os.getenv("RSA_KEY_LENGTH", 4096)))
+    keys = RSA.generate(1024)  # Setting the length to 4096 caused a failure on Windows (issue #105)
 
     # Get public and private keys,
     # encode them with base64, and convert them from bytes to string
