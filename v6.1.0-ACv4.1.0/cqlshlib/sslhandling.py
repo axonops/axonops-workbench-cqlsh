@@ -76,7 +76,7 @@ def ssl_settings(host, config_file, env=os.environ, varsManifest=None, varsValue
                     for option in options:
                         for variable in variables:
                             value = configs.get(section, option)
-                            matchedVars = re.findall("\$\{(" + variable["name"] + ")\}", value)
+                            matchedVars = re.findall(r"\${(" + variable["name"] + ")}", value)
                             for matchedVar in matchedVars:
                                 newValue = value.replace("${" + matchedVar + "}", variable["value"])
                                 configs.set(section, option, value=newValue)

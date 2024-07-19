@@ -125,7 +125,21 @@ cqlruleset = None
 
 
 if platform.system() == 'Windows':
-   set_keyring(backends.Windows.WinVaultKeyring())
+    try:
+        from keyring.backends.Windows import WinVaultKeyring
+        set_keyring(WinVaultKeyring())
+    except:
+        pass
+
+if platform.system() == 'Linux':
+    try:
+        get_password("AxonOpsDeveloperWorkbenchPublicKey", "key")
+    except:
+        try:
+            from keyring.backends import libsecret
+            set_keyring(libsecret.Keyring())
+        except:
+            pass
 
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
@@ -963,13 +977,13 @@ class Shell(cmd.Cmd):
             if '*/' in result:
                 result = re.sub('.*[*][/]', "", result)
                 self.in_comment = False
-            if self.in_comment and not re.findall('[/][*]|[*][/]', statementtext):
+            if self.in_comment and not re.findall(r'[/][*]|[*][/]', statementtext):
                 result = ''
             return result
         return statementtext
 
     def onecmd(self, statementtext):
-        if len(re.findall("KEYWORD:STATEMENT:IGNORE-\d+", statementtext)) > 0:
+        if len(re.findall(r'KEYWORD:STATEMENT:IGNORE-\d+', statementtext)) > 0:
             return True
 
         """
@@ -2223,7 +2237,7 @@ def read_options(cmdlineargs, environment):
                     for option in options:
                         for variable in variables:
                             value = configs.get(section, option)
-                            matchedVars = re.findall("\$\{(" + variable["name"] + ")\}", value)
+                            matchedVars = re.findall(r'\${(' + variable["name"] + ')}', value)
                             for matchedVar in matchedVars:
                                 newValue = value.replace("${" + matchedVar + "}", variable["value"])
                                 configs.set(section, option, value=newValue)
@@ -2236,7 +2250,7 @@ def read_options(cmdlineargs, environment):
                     for option in options:
                         for variable in variables:
                             value = rawconfigs.get(section, option)
-                            matchedVars = re.findall("\$\{(" + variable["name"] + ")\}", value)
+                            matchedVars = re.findall(r'\${(' + variable["name"] + ')}', value)
                             for matchedVar in matchedVars:
                                 newValue = value.replace("${" + matchedVar + "}", variable["value"])
                                 rawconfigs.set(section, option, value=newValue)
