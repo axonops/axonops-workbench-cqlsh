@@ -45,7 +45,7 @@ publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"
 # If not, then create both keys
 if publicKey is None or privateKey is None or \
         len(publicKey) != 271 or len(privateKey) != 886:
-    keys = RSA.generate(int(os.getenv("RSA_KEY_LENGTH", 2048))) # Setting the length to 2048 caused a failure on Windows (issue #105)
+    keys = RSA.generate(int(os.getenv("RSA_KEY_LENGTH", 2048))) # Setting the length to 4096 caused a failure on Windows (issue #105)
 
     # Get public and private keys,
     # encode them with base64, and convert them from bytes to string
