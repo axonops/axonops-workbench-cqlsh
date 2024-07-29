@@ -178,9 +178,11 @@ parser.add_option("--insecure-password-without-warning", action='store_true', de
                   help=optparse.SUPPRESS_HELP)
 
 # Custom arguments
-parser.add_option("-l", "--log", help="Specify the path of the log file")
-parser.add_option("-i", "--ip", help="Specify the IP of the cluster")
+parser.add_option("--log", help="Specify the path of the log file")
+parser.add_option("--port", help="Specify the port of the cluster")
+parser.add_option("--ip", help="Specify the IP of the cluster")
 parser.add_option("--basic", help="Disable most of the customizations")
+parser.add_option("--keepTemp", help="Keep the temporary files")
 parser.add_option("--varsManifest", help="Specify the path to variables manifest")
 parser.add_option("--varsValues", help="Specify the path to variables values")
 parser.add_option("--workspaceID", help="Specify the workspace ID which variables scope will be restricted to")
@@ -2252,7 +2254,7 @@ def read_options(cmdlineargs, environment):
                                 newValue = value.replace("${" + matchedVar + "}", variable["value"])
                                 rawconfigs.set(section, option, value=newValue)
             try:
-                if varsManifest.endswith("aocwtmp") and varsValues.endswith("aocwtmp"):
+                if not hasattr(options, "keepTemp") and varsManifest.endswith("aocwtmp") and varsValues.endswith("aocwtmp"):
                     os.remove(varsManifest)
                     os.remove(varsValues)
             except:
