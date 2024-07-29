@@ -26,7 +26,8 @@ original_exit = sys.exit
 def custom_exit(*args, **kwargs):
     # If it's a test process then make sure to print the keyword for the app
     if '--test' in sys.argv:
-        print("KEYWORD:TEST:COMPLETED")
+        if not isBasic:
+            print("KEYWORD:TEST:COMPLETED")
 
     # Call the original sys.exit
     original_exit(*args, **kwargs)
@@ -190,10 +191,12 @@ parser.add_option("-t", "--tty", action='store_true', dest='tty',
                   help='Force tty mode (command prompt).')
 
 # Custom arguments
-parser.add_option("-l", "--log", help="Specify the path of the log file")
-parser.add_option("-o", "--port", help="Specify the port of the cluster")
-parser.add_option("-i", "--ip", help="Specify the IP of the cluster")
+parser.add_option("--log", help="Specify the path of the log file")
+parser.add_option("--port", help="Specify the port of the cluster")
+parser.add_option("--ip", help="Specify the IP of the cluster")
 parser.add_option("--test", help="Only test connection and return Cassandra version")
+parser.add_option("--basic", help="Disable most of the customizations")
+parser.add_option("--keepTemp", help="Keep the temporary files")
 parser.add_option("--varsManifest", help="Specify the path to variables manifest")
 parser.add_option("--varsValues", help="Specify the path to variables values")
 parser.add_option("--workspaceID", help="Specify the workspace ID which variables scope will be restricted to")
@@ -249,6 +252,10 @@ if hasattr(options, "varsValues"):
 workspaceID = None
 if hasattr(options, "workspaceID"):
     workspaceID = options.workspaceID
+
+isBasic = False
+if hasattr(options, "basic"):
+    isBasic = True
 
 # Checks
 if hasattr(options, "port"):
@@ -549,7 +556,8 @@ class Shell(cmd.Cmd):
             global start_printed
             if start_printed is False:
                 start_printed = True
-                print("KEYWORD:CQLSH:STARTED")
+                if not isBasic:
+                    print("KEYWORD:CQLSH:STARTED")
         else:
             self.show_line_nums = True
         self.stdin = stdin
@@ -631,7 +639,8 @@ class Shell(cmd.Cmd):
             info.setdefault("datacenters", datacenters)
 
             print(info)
-            print("KEYWORD:TEST:COMPLETED")
+            if not isBasic:
+                print("KEYWORD:TEST:COMPLETED")
             self.conn.shutdown()
             self.do_exit()
             sys.exit()
@@ -847,7 +856,8 @@ class Shell(cmd.Cmd):
         self.statement.truncate(0)
         self.statement.seek(0)
         self.empty_lines = 0
-        print("KEYWORD:OUTPUT:COMPLETED:ALL")
+        if not isBasic:
+            print("KEYWORD:OUTPUT:COMPLETED:ALL")
 
     def reset_prompt(self):
         if self.current_keyspace is None:
@@ -1037,12 +1047,13 @@ class Shell(cmd.Cmd):
             return True
 
         try:
-            endtoken_count = sum(1 for sublist in statements if any(token[0] == 'endtoken' for token in sublist))
-            print(f"KEYWORD:STATEMENTS:COUNT:{endtoken_count}")
+            if not isBasic:
+                endtoken_count = sum(1 for sublist in statements if any(token[0] == 'endtoken' for token in sublist))
+                print(f"KEYWORD:STATEMENTS:COUNT:{endtoken_count}")
 
-            identifiers = [next((token[1] for token in sublist if token[0] in ('identifier', 'reserved_identifier')), None) for sublist in statements]
-            identifiers = [identifier for identifier in identifiers if identifier is not None]  # Remove None values
-            print(f"KEYWORD:STATEMENTS:IDENTIFIERS:[{','.join(identifiers)}]")
+                identifiers = [next((token[1] for token in sublist if token[0] in ('identifier', 'reserved_identifier')), None) for sublist in statements]
+                identifiers = [identifier for identifier in identifiers if identifier is not None]  # Remove None values
+                print(f"KEYWORD:STATEMENTS:IDENTIFIERS:[{','.join(identifiers)}]")
         except:
             pass
 
@@ -1054,7 +1065,8 @@ class Shell(cmd.Cmd):
             self.set_continue_prompt()
             return
         for st in statements:
-            print("KEYWORD:OUTPUT:STARTED")
+            if not isBasic:
+                print("KEYWORD:OUTPUT:STARTED")
             try:
                 self.handle_statement(st, statementtext)
             except Exception as e:
@@ -1062,7 +1074,8 @@ class Shell(cmd.Cmd):
                     traceback.print_exc()
                 else:
                     self.printerr(e)
-            print("KEYWORD:OUTPUT:COMPLETED")
+            if not isBasic:
+                print("KEYWORD:OUTPUT:COMPLETED")
         return True
 
     def handle_eof(self):
@@ -2112,9 +2125,11 @@ class Shell(cmd.Cmd):
             shownum = self.show_line_nums
         if shownum:
             text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
-        print("KEYWORD:ERROR:STARTED")
+        if not isBasic:
+            print("KEYWORD:ERROR:STARTED")
         self.writeresult(text, color, newline=newline, out=sys.stderr)
-        print("KEYWORD:ERROR:COMPLETED")
+        if not isBasic:
+            print("KEYWORD:ERROR:COMPLETED")
 
     def stop_coverage(self):
         if self.coverage and self.cov is not None:
@@ -2274,6 +2289,12 @@ def read_options(cmdlineargs, environment):
                             for matchedVar in matchedVars:
                                 newValue = value.replace("${" + matchedVar + "}", variable["value"])
                                 rawconfigs.set(section, option, value=newValue)
+        try:
+            if not hasattr(options, "keepTemp") and varsManifest.endswith("aocwtmp") and varsValues.endswith("aocwtmp"):
+                os.remove(varsManifest)
+                os.remove(varsValues)
+        except:
+            pass
     except:
         pass
 

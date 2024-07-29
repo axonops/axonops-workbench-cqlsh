@@ -18,11 +18,12 @@
 from platform import system
 from keyring import get_password, set_password, set_keyring, backends
 from Crypto.PublicKey import RSA
-import os
+from os import getenv
 
 if system() == 'Windows':
     try:
         from keyring.backends.Windows import WinVaultKeyring
+
         set_keyring(WinVaultKeyring())
     except:
         pass
@@ -33,32 +34,47 @@ if system() == 'Linux':
     except:
         try:
             from keyring.backends import libsecret
+
             set_keyring(libsecret.Keyring())
         except:
             pass
 
-# First, attempt get the keys from the OS keychain
-publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"), \
-                        get_password("AxonOpsDeveloperWorkbenchPrivateKey", "key")
+try:
+    # First, attempt get the keys from the OS keychain
+    publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"), \
+                            get_password("AxonOpsDeveloperWorkbenchPrivateKey", "key")
 
-# Check that they're saved in the OS keychain and valid if so
-# If not, then create both keys
-if publicKey is None or privateKey is None or \
-        len(publicKey) != 271 or len(privateKey) != 886:
-    keys = RSA.generate(int(os.getenv("RSA_KEY_LENGTH", 2048))) # Setting the length to 2048 caused a failure on Windows (issue #105)
 
-    # Get public and private keys,
-    # encode them with base64, and convert them from bytes to string
-    publicKey, privateKey = keys.publickey().exportKey(), keys.exportKey()
-    publicKey, privateKey = publicKey.decode("utf-8"), privateKey.decode("utf-8")
+    def generateKeys(length):
+        global publicKey, privateKey
 
-    # Now set both keys in the OS keychain
-    set_password(
-        "AxonOpsDeveloperWorkbenchPublicKey",
-        "key", publicKey)
-    set_password(
-        "AxonOpsDeveloperWorkbenchPrivateKey",
-        "key", privateKey)
+        # Check that they're saved in the OS keychain and valid if so
+        # If not, then create both keys
+        if publicKey is None or privateKey is None or \
+                len(publicKey) != 271 or len(privateKey) != 886:
+            keys = RSA.generate(length)  # Setting the length to 4096 caused a failure on Windows (issue #105)
 
-# Print the public key
-print(publicKey)
+            # Get public and private keys,
+            # encode them with base64, and convert them from bytes to string
+            publicKey, privateKey = keys.publickey().exportKey(), keys.exportKey()
+            publicKey, privateKey = publicKey.decode("utf-8"), privateKey.decode("utf-8")
+
+            # Now set both keys in the OS keychain
+            set_password(
+                "AxonOpsDeveloperWorkbenchPublicKey",
+                "key", publicKey)
+            set_password(
+                "AxonOpsDeveloperWorkbenchPrivateKey",
+                "key", privateKey)
+
+
+    try:
+        generateKeys(int(getenv("RSA_KEY_LENGTH", 2048)))
+    except:
+        generateKeys(int(getenv("RSA_KEY_LENGTH", 1024)))
+        pass
+
+    # Print the public key
+    print(publicKey)
+except:
+    pass
