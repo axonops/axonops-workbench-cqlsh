@@ -437,7 +437,10 @@ class Shell(cmd.Cmd):
     if custom_prompt != '':
         custom_prompt += "\n"
     default_prompt = custom_prompt + "cqlsh> "
-    continue_prompt = "   ... "
+    if isBasic:
+        continue_prompt = "   ... "
+    else:
+        continue_prompt = "   ... KEYWORD:STATEMENT:INCOMPLETE"
     keyspace_prompt = custom_prompt + "cqlsh:{}> "
     keyspace_continue_prompt = "{}    ... "
     show_line_nums = False
@@ -447,7 +450,7 @@ class Shell(cmd.Cmd):
     stop = False
     last_hist = None
     shunted_query_out = None
-    use_paging = True
+    use_paging = isBasic
 
     default_page_size = 100
 
@@ -1830,6 +1833,10 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = SwitchCommand("TRACING", "Tracing").execute(self.tracing_enabled, parsed, self.printerr)
 
     def do_expand(self, parsed):
+        if not isBasic:
+            print("[OUTPUT:INFO]The expand output option does not affect the interactive terminal.")
+            return
+
         """
         EXPAND [cqlsh]
 
@@ -2036,6 +2043,10 @@ class Shell(cmd.Cmd):
         """
 
     def do_paging(self, parsed):
+        if not isBasic:
+            print("[OUTPUT:INFO]The query pagin option does not affect the interactive terminal.")
+            return
+
         """
         PAGING [cqlsh]
 
