@@ -104,7 +104,7 @@ from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
 # Cassandra Workbench
 # Cassandra Workbench
 from base64 import b64decode
-from cqlshlib.axonOpsDeveloperWorkbench import main as axonOpsDeveloperWorkbench
+from cqlshlib.axonOpsWorkbench import main as axonOpsWorkbench
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from keyring import get_password, set_keyring, backends
@@ -140,7 +140,7 @@ if platform.system() == 'Windows':
 
 if platform.system() == 'Linux':
     try:
-        get_password("AxonOpsDeveloperWorkbenchPublicKey", "key")
+        get_password("AxonOpsWorkbenchPublicKey", "key")
     except:
         try:
             from keyring.backends import libsecret
@@ -216,7 +216,7 @@ if hasattr(options, "username") and hasattr(options, "password"):
     # it'll keep working as well
     try:
         # Get the private key from OS keychain
-        privateKey = get_password("AxonOpsDeveloperWorkbenchPrivateKey", "key")
+        privateKey = get_password("AxonOpsWorkbenchPrivateKey", "key")
         # Import the private key, and start the RSA cipher object
         key = RSA.importKey(privateKey)
         cipher = PKCS1_v1_5.new(key)
@@ -970,11 +970,11 @@ class Shell(cmd.Cmd):
                     if "print metadata" in line:
                         metadata_id = re.findall(r'\((.+)\)', line)
                         if len(metadata_id) <= 0:
-                            print(axonOpsDeveloperWorkbench.printMetadata(self.session))
+                            print(axonOpsWorkbench.printMetadata(self.session))
                             print("KEYWORD:PROCESS:COMPLETED")
                         else:
                             metadata_id = metadata_id[0]
-                            printProcess = threading.Thread(target=axonOpsDeveloperWorkbench.printMetadataBackground, args=(metadata_id, self.session))
+                            printProcess = threading.Thread(target=axonOpsWorkbench.printMetadataBackground, args=(metadata_id, self.session))
                             printProcess.start()
                         not_custom = False
 
@@ -983,7 +983,7 @@ class Shell(cmd.Cmd):
                     """
                     if "print cql_desc" in line:
                         info = re.findall(r'\((.*?)\)', line)
-                        printProcess = threading.Thread(target=axonOpsDeveloperWorkbench.printCQLDescBackground, args=(info[0], info[1], self.session))
+                        printProcess = threading.Thread(target=axonOpsWorkbench.printCQLDescBackground, args=(info[0], info[1], self.session))
                         printProcess.start()
                         not_custom = False
 
@@ -992,7 +992,7 @@ class Shell(cmd.Cmd):
                     """
                     if "check connection" in line:
                         info = re.findall(r'\((.*?)\)', line)
-                        checkProcess = threading.Thread(target=axonOpsDeveloperWorkbench.checkConnectivityBackground, args=(info[0], self.session))
+                        checkProcess = threading.Thread(target=axonOpsWorkbench.checkConnectivityBackground, args=(info[0], self.session))
                         checkProcess.start()
                         not_custom = False
 
