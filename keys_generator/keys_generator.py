@@ -30,7 +30,7 @@ if system() == 'Windows':
 
 if system() == 'Linux':
     try:
-        get_password("AxonOpsDeveloperWorkbenchPublicKey", "key")
+        get_password("AxonOpsWorkbenchPublicKey", "key")
     except:
         try:
             from keyring.backends import libsecret
@@ -41,8 +41,8 @@ if system() == 'Linux':
 
 try:
     # First, attempt get the keys from the OS keychain
-    publicKey, privateKey = get_password("AxonOpsDeveloperWorkbenchPublicKey", "key"), \
-                            get_password("AxonOpsDeveloperWorkbenchPrivateKey", "key")
+    publicKey, privateKey = get_password("AxonOpsWorkbenchPublicKey", "key"), \
+                            get_password("AxonOpsWorkbenchPrivateKey", "key")
 
 
     def generateKeys(length):
@@ -61,17 +61,20 @@ try:
 
             # Now set both keys in the OS keychain
             set_password(
-                "AxonOpsDeveloperWorkbenchPublicKey",
+                "AxonOpsWorkbenchPublicKey",
                 "key", publicKey)
             set_password(
-                "AxonOpsDeveloperWorkbenchPrivateKey",
+                "AxonOpsWorkbenchPrivateKey",
                 "key", privateKey)
 
 
     try:
         generateKeys(int(getenv("RSA_KEY_LENGTH", 2048)))
     except:
-        generateKeys(int(getenv("RSA_KEY_LENGTH", 1024)))
+        try:
+            generateKeys(int(getenv("RSA_KEY_LENGTH", 1024)))
+        except:
+            pass
         pass
 
     # Print the public key
