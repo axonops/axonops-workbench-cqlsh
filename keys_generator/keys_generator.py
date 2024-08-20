@@ -50,8 +50,7 @@ try:
 
         # Check that they're saved in the OS keychain and valid if so
         # If not, then create both keys
-        if publicKey is None or privateKey is None or \
-                len(publicKey) != 271 or len(privateKey) != 886:
+        if publicKey is None or privateKey is None:
             keys = RSA.generate(length)  # Setting the length to 4096 caused a failure on Windows (issue #105)
 
             # Get public and private keys,
@@ -69,6 +68,9 @@ try:
 
 
     try:
+        if system() == 'Windows':
+            raise Exception()
+        
         generateKeys(int(getenv("RSA_KEY_LENGTH", 2048)))
     except:
         try:
