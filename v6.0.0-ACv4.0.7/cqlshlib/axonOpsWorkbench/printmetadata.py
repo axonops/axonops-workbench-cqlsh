@@ -216,6 +216,7 @@ def printMetadata(session):
             temp["functions"] = __getKeyspaceFunctions(keyspace_obj.functions)
             temp["aggregates"] = __getKeyspaceAggregates(keyspace_obj.aggregates)
             temp["views"] = __getViews(keyspace_obj.views)
+            temp["replication_strategy"] = keyspace_obj.replication_strategy.export_for_schema()
             final_metadata["keyspaces"].append(temp)
     finally:
         return final_metadata
