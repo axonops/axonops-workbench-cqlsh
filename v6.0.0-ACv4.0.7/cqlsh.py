@@ -17,6 +17,9 @@
 # limitations under the License.
 from __future__ import division, unicode_literals, print_function
 
+# The current release version of the binaries
+CUSTOM_VERSION = '0.10.0'
+
 import sys
 
 # Hold the original `sys.exit` function
@@ -202,9 +205,14 @@ parser.add_option("--varsValues", help="Specify the path to variables values")
 parser.add_option("--workspaceID", help="Specify the workspace ID which variables scope will be restricted to")
 parser.add_option("--overrideHost", help="Override the host used to connect")
 parser.add_option("--overridePort", help="Override the port used to connect")
+parser.add_option("--cversion", help="Just print the custom version of the binaries")
 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
+
+if hasattr(options, "cversion"):
+    print(CUSTOM_VERSION)
+    sys.exit(0)
 
 givenUsername = None
 givenPassword = None
