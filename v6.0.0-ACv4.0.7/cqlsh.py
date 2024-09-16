@@ -22,6 +22,8 @@ CUSTOM_VERSION = '0.10.0'
 
 import sys
 
+isBasic = False
+
 # Hold the original `sys.exit` function
 original_exit = sys.exit
 
@@ -261,7 +263,6 @@ workspaceID = None
 if hasattr(options, "workspaceID"):
     workspaceID = options.workspaceID
 
-isBasic = False
 if hasattr(options, "basic"):
     isBasic = True
 
