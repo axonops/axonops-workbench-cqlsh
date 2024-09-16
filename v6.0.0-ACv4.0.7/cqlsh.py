@@ -18,7 +18,7 @@
 from __future__ import division, unicode_literals, print_function
 
 # The current release version of the binaries
-CUSTOM_VERSION = '0.10.0'
+CUSTOM_VERSION = '0.11.0'
 
 import sys
 
