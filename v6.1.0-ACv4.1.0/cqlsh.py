@@ -1009,23 +1009,16 @@ class Shell(cmd.Cmd):
                 identifiers = [next((token[1] for token in sublist if token[0] in ('identifier', 'reserved_identifier')), None) for sublist in statements]
                 identifiers = [identifier for identifier in identifiers if identifier is not None]  # Remove None values
                 
-
-                next_identifiers = ['None' for _ in identifiers]
-                currentIndex = 0
-                for sublist in statements:
-                    found_reserved = False
-                    for token in sublist:
-                        if token[0] == 'reserved_identifier':
-                            found_reserved = True
-                        elif found_reserved and token[0] == 'identifier':
-                            next_identifiers[currentIndex] = token[1]
-                            found_reserved = False
-                    currentIndex = currentIndex + 1
-                
+                next_identifiers = ''
+                try:
+                    next_identifiers = statements[0][1][1]
+                except:
+                    pass
+                    
                 finalOutput = f"KEYWORD:STATEMENTS:IDENTIFIERS:[{','.join(identifiers)}]"
 
-                if next_identifiers:
-                    finalOutput = f"{finalOutput}[{','.join(next_identifiers)}]"
+                if len(next_identifiers) > 0:
+                    finalOutput = f"{finalOutput}[{next_identifiers}]"
 
                 print(f"{finalOutput}")
         except:
