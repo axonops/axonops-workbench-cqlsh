@@ -1067,6 +1067,7 @@ class Shell(cmd.Cmd):
                 identifiers = [identifier for identifier in identifiers if identifier is not None]  # Remove None values
                 
                 next_identifiers = ''
+                
                 try:
                     next_identifiers = statements[0][1][1]
                 except:
