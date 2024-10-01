@@ -19,8 +19,7 @@ pyasynchat==1.0.4
 pyasyncore==1.0.4
 pycparser==2.22
 pycryptodome==3.19.1
-pyinstaller==6.9.0
-pyinstaller-hooks-contrib==2024.7
+pyinstaller==6.10.0
 pytz==2022.7.1
 SecretStorage==3.3.3
 setuptools==70.3.0
