@@ -92,9 +92,14 @@ jobs:
             pyinstaller --noconfirm --clean --noupx v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-$(uname -s)-$(uname -m)
             pyinstaller --noconfirm --clean --noupx keys_generator/keys_generator.py -n keys_generator-$(uname -s)-$(uname -m)
           fi
+          if [ "$(uname -s )" == "Darwin" ] && [ "$(uname -m)" == "x86_64" ]; then
+            pyinstaller --noconfirm --clean --noupx v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-$(uname -s)-universal --target-arch universal2
+            pyinstaller --noconfirm --clean --noupx v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-$(uname -s)-universal --target-arch universal2
+            pyinstaller --noconfirm --clean --noupx keys_generator/keys_generator.py -n keys_generator-universal --target-arch universal2
+          fi
           rm -rf dist/*-dyn-*
 
-          for target in cqlsh-407-$(uname -s)-$(uname -m) cqlsh-410-$(uname -s)-$(uname -m) keys_generator-$(uname -s)-$(uname -m); do
+          for target in cqlsh-407-$(uname -s)-$(uname -m) cqlsh-410-$(uname -s)-$(uname -m) keys_generator-$(uname -s)-$(uname -m) cqlsh-407-$(uname -s)-universal cqlsh-410-$(uname -s)-universal keys_generator-$(uname -s)-universal; do
             (cd dist && tar cpf $(basename $target).tar $target)
           done
 
