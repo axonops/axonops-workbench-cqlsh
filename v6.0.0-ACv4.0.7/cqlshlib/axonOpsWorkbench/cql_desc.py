@@ -1,18 +1,26 @@
 # Custom module to print the CQL description of an entire cluster, keyspace, or a specific table, or an index
 from os import path
 import tempfile
+import re
 
 def extractTableSchema(full_schema, keyspace_name, table_name, index_name = None):
     try:
         tables = full_schema.split("CREATE TABLE")
+        pattern = rf'["\']*{keyspace_name}["\']*\.\s*["\']*{table_name}["\']*'
+        
         for table in tables:
-            if f"{keyspace_name}.{table_name}" in table:
+            if re.search(pattern, table):
                 if index_name is None:
                     return "CREATE TABLE" + table.split(";")[0] + ";"
                 else:
                     parts = table.split(";")
-                    index = list(filter(lambda statement: (index_name in statement) and ((f"{keyspace_name}.{table_name}") in statement), parts))
-                    return "/* Description of the index table */\n" + "CREATE TABLE" + parts[0] + ";\n\n" + "/* Description of the index */" + index[0] + ";"
+                    index_pattern = rf'["\']*{index_name}["\']*'
+                    index = list(filter(lambda statement: re.search(index_pattern, statement) and re.search(pattern, statement), parts))
+                    if index:
+                        return "/* Description of the index table */\n" + "CREATE TABLE" + parts[0] + ";\n\n" + "/* Description of the index */" + index[0] + ";"
+                    else:
+                        return "/* Index not found */"
+    
     except:
         pass
     
