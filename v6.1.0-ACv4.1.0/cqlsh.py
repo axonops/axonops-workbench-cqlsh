@@ -991,6 +991,7 @@ class Shell(cmd.Cmd):
         try:
             statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError as e:
+            print("KEYWORD:OUTPUT:STARTED")
             if self.show_line_nums:
                 self.printerr('Invalid syntax at line {0}, char {1}'
                               .format(e.linenum, e.charnum))
@@ -999,6 +1000,7 @@ class Shell(cmd.Cmd):
             statementline = statementtext.split('\n')[e.linenum - 1]
             self.printerr('  {0}'.format(statementline))
             self.printerr(' {0}^'.format(' ' * e.charnum))
+            print("KEYWORD:OUTPUT:COMPLETED")
             return True
 
         try:
