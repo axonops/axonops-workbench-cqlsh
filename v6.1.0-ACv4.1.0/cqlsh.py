@@ -188,6 +188,7 @@ parser.add_option("--varsValues", help="Specify the path to variables values")
 parser.add_option("--workspaceID", help="Specify the workspace ID which variables scope will be restricted to")
 parser.add_option("--overrideHost", help="Override the host used to connect")
 parser.add_option("--overridePort", help="Override the port used to connect")
+parser.add_option("--initialize", help="Set the execution to be an initialization process")
 
 opt_values = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
@@ -220,6 +221,9 @@ if hasattr(options, "username") and hasattr(options, "password"):
         givenUsername = options.username
         givenPassword = options.password
         pass
+    if hasattr(options, "initialize"):
+        print("KEYWORD:INIT:COMPLETED")
+        sys.exit(0)
 
 overrideHost = None
 overridePort = None
@@ -240,6 +244,7 @@ if hasattr(options, "workspaceID"):
     workspaceID = options.workspaceID
 
 isBasic = False
+isJSONKeywordFound = False
 if hasattr(options, "basic"):
     isBasic = True
 
@@ -1005,6 +1010,8 @@ class Shell(cmd.Cmd):
 
         try:
             if not isBasic:
+                global isJSONKeywordFound
+                
                 endtoken_count = sum(1 for sublist in statements if any(token[0] == 'endtoken' for token in sublist))
                 print(f"KEYWORD:STATEMENTS:COUNT:{endtoken_count}")
 
@@ -1022,6 +1029,7 @@ class Shell(cmd.Cmd):
 
                 if len(next_identifiers) > 0:
                     finalOutput = f"{finalOutput}[{next_identifiers}]"
+                    isJSONKeywordFound = f"{next_identifiers}".lower() == "json"
 
                 print(f"{finalOutput}")
         except:
@@ -1233,7 +1241,13 @@ class Shell(cmd.Cmd):
             return num_rows
 
         num_rows = print_all(result, table_meta, self.tty)
-        self.writeresult("(%d rows)" % num_rows)
+        try:
+            if not isBasic and not isJSONKeywordFound:
+                raise ''
+                
+            self.writeresult("(%d rows)" % num_rows)
+        except:
+            pass
 
         if self.decoding_errors:
             for err in self.decoding_errors[:2]:
@@ -1245,7 +1259,7 @@ class Shell(cmd.Cmd):
     def print_static_result(self, result, table_meta, with_header, tty, row_count_offset=0):
         if not result.column_names and not table_meta:
             return
-
+        
         column_names = result.column_names or list(table_meta.columns.keys())
         formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
         if not result.current_rows:
@@ -1261,6 +1275,22 @@ class Shell(cmd.Cmd):
 
         formatted_values = [list(map(self.myformat_value, [row[c] for c in column_names], cql_types)) for row in
                             result.current_rows]
+        
+        if not isBasic and not isJSONKeywordFound:
+            try:
+                all_rows = [
+                    {c: self.myformat_value(row[c], cql_type) for c, cql_type in zip(column_names, cql_types)}
+                    for row in result.all()
+                ]
+                
+                for row in all_rows:
+                    for key in row:
+                        row[key] = row[key].strval
+                    print(row)
+
+                return
+            except:
+                pass
 
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values, row_count_offset)
@@ -1268,6 +1298,9 @@ class Shell(cmd.Cmd):
             self.print_formatted_result(formatted_names, formatted_values, with_header, tty)
 
     def print_formatted_result(self, formatted_names, formatted_values, with_header, tty):
+        if not isBasic and not isJSONKeywordFound:
+            return
+        
         # determine column widths
         widths = [n.displaywidth for n in formatted_names]
         if formatted_values is not None:
