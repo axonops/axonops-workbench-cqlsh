@@ -76,29 +76,22 @@ jobs:
           mkdir -p dist
 
           if [[ "$(uname -s)" =~ "Linux" ]]; then
-            mkdir -p dist/cqlsh-407-$(uname -s)-$(uname -m)
-            pyinstaller --noconfirm --clean --noupx --onefile v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-dyn-$(uname -s)-$(uname -m)
-            staticx dist/cqlsh-407-dyn-$(uname -s)-$(uname -m) dist/cqlsh-407-$(uname -s)-$(uname -m)/cqlsh-407-$(uname -s)-$(uname -m)
-
-            mkdir -p dist/cqlsh-410-$(uname -s)-$(uname -m)
-            pyinstaller --noconfirm --clean --noupx --onefile v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-dyn-$(uname -s)-$(uname -m)
-            staticx dist/cqlsh-410-dyn-$(uname -s)-$(uname -m) dist/cqlsh-410-$(uname -s)-$(uname -m)/cqlsh-410-$(uname -s)-$(uname -m)
+            mkdir -p dist/cqlsh-$(uname -s)-$(uname -m)
+            pyinstaller --noconfirm --clean --noupx --onefile cqlsh/cqlsh.py -n cqlsh-dyn-$(uname -s)-$(uname -m)
+            staticx dist/cqlsh-dyn-$(uname -s)-$(uname -m) dist/cqlsh-$(uname -s)-$(uname -m)/cqlsh-$(uname -s)-$(uname -m)
 
             mkdir -p dist/keys_generator-$(uname -s)-$(uname -m)
             pyinstaller --noconfirm --clean --noupx --onefile keys_generator/keys_generator.py -n keys_generator-dyn-$(uname -s)-$(uname -m)
             staticx dist/keys_generator-dyn-$(uname -s)-$(uname -m) dist/keys_generator-$(uname -s)-$(uname -m)/keys_generator-$(uname -s)-$(uname -m)
           else
-            pyinstaller --noconfirm --clean --noupx v6.0.0-ACv4.0.7/cqlsh.py -n cqlsh-407-$(uname -s)-$(uname -m)
-            pyinstaller --noconfirm --clean --noupx v6.1.0-ACv4.1.0/cqlsh.py -n cqlsh-410-$(uname -s)-$(uname -m)
+            pyinstaller --noconfirm --clean --noupx cqlsh/cqlsh.py -n cqlsh-$(uname -s)-$(uname -m)
             pyinstaller --noconfirm --clean --noupx keys_generator/keys_generator.py -n keys_generator-$(uname -s)-$(uname -m)
           fi
           rm -rf dist/*-dyn-*
 
-          for target in cqlsh-407-$(uname -s)-$(uname -m) cqlsh-410-$(uname -s)-$(uname -m) keys_generator-$(uname -s)-$(uname -m); do
+          for target in cqlsh-$(uname -s)-$(uname -m) keys_generator-$(uname -s)-$(uname -m); do
             (cd dist && tar cpf $(basename $target).tar $target)
           done
-
-          ls -l dist/
 
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
