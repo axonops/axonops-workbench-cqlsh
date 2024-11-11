@@ -63,7 +63,7 @@ except ImportError:
 # ---------- AxonOps Workbench
 from base64 import b64decode
 from cqlshlib.axonOpsWorkbench import main as axonOpsWorkbench
-from Crypto.Cipher import PKCS1_v1_5
+from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from keyring import get_password, set_keyring, backends
 import json
@@ -2660,14 +2660,14 @@ def main(cmdline, pkgpath):
             privateKey = get_password("AxonOpsWorkbenchPrivateKey", "key")
             # Import the private key, and start the RSA cipher object
             key = RSA.importKey(privateKey)
-            cipher = PKCS1_v1_5.new(key)
+            cipher = PKCS1_OAEP.new(key)
             # Decrypt Username
             decryptedUsername = b64decode(cfarguments.username)
-            decryptedUsername = cipher.decrypt(decryptedUsername, "")
+            decryptedUsername = cipher.decrypt(decryptedUsername)
             cfarguments.username = decryptedUsername.decode("utf-8")
             # Decrypt Password
             decryptedPassword = b64decode(cfarguments.password)
-            decryptedPassword = cipher.decrypt(decryptedPassword, "")
+            decryptedPassword = cipher.decrypt(decryptedPassword)
             cfarguments.password = decryptedPassword.decode("utf-8")
             givenUsername = cfarguments.username
             givenPassword = cfarguments.password
