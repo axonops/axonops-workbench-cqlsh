@@ -21,9 +21,6 @@ import platform
 import sys
 from glob import glob
 
-if sys.version_info < (3, 6) or sys.version_info >= (3, 12):
-    sys.exit("\ncqlsh requires Python 3.6-3.11\n")
-
 # see CASSANDRA-10428
 if platform.python_implementation().startswith('Jython'):
     sys.exit("\nCQL Shell does not run on Jython\n")
