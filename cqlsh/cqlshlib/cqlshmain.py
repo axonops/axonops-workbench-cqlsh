@@ -350,19 +350,19 @@ class Shell(cmd.Cmd):
                  is_subshell=False,
                  auth_provider=None):
         cmd.Cmd.__init__(self, completekey=completekey)
-        
+
         self.auth_provider = auth_provider
-        
+
         # ---------- AxonOps Workbench
         config_file = configFile
         # ----------
-        
+
         self.config_file = config_file
 
         # ---------- AxonOps Workbench
         if givenPort is None:
             givenPort = port
-        
+
         if givenHost is None:
             givenHost = hostname
 
@@ -974,14 +974,14 @@ class Shell(cmd.Cmd):
 
                 identifiers = [next((token[1] for token in sublist if token[0] in ('identifier', 'reserved_identifier')), None) for sublist in statements]
                 identifiers = [identifier for identifier in identifiers if identifier is not None]  # Remove None values
-                
+
                 next_identifiers = ''
-                
+
                 try:
                     next_identifiers = statements[0][1][1]
                 except:
                     pass
-                    
+
                 finalOutput = f"KEYWORD:STATEMENTS:IDENTIFIERS:[{','.join(identifiers)}]"
 
                 if len(next_identifiers) > 0:
@@ -1214,7 +1214,7 @@ class Shell(cmd.Cmd):
         except:
             pass
         # ----------
-        
+
         if self.decoding_errors:
             for err in self.decoding_errors[:2]:
                 self.writeresult(err.message(), color=RED)
@@ -1248,7 +1248,7 @@ class Shell(cmd.Cmd):
                     {c: self.myformat_value(row[c], cql_type) for c, cql_type in zip(column_names, cql_types)}
                     for row in result.all()
                 ]
-                
+
                 for row in all_rows:
                     for key in row:
                         row[key] = row[key].strval
@@ -1769,7 +1769,7 @@ class Shell(cmd.Cmd):
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
                          is_subshell=True,
-                         
+
                          # ---------- AxonOps Workbench
                          givenUsername = self.givenUsername,
                          givenPassword = self.givenPassword,
@@ -2365,7 +2365,7 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
     # ---------- AxonOps Workbench
     # if username_from_cqlshrc or password_from_cqlshrc:
     #     if password_from_cqlshrc and not is_file_secure(os.path.expanduser(config_file)):
-            
+
     #         print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.", end='', file=sys.stderr)
     #     print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
     #           "\nPlease use a credentials file to specify the username and password.\n", file=sys.stderr)
@@ -2462,21 +2462,21 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
         options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
-    
+
     elif not options.insecure_password_without_warning:
         # ---------- AxonOps Workbench
         # print("\nWarning: Using a password on the command line interface can be insecure."
         #       "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
         pass
         # ----------
-        
+
 
     hostname = option_with_default(configs.get, 'connection', 'hostname', Shell.DEFAULT_HOST)
     port = option_with_default(configs.get, 'connection', 'port', Shell.DEFAULT_PORT)
 
     hostname = environment.get('CQLSH_HOST', hostname)
     port = environment.get('CQLSH_PORT', port)
-    
+
     try:
         options.connect_timeout = int(options.connect_timeout)
     except ValueError:
@@ -2607,7 +2607,7 @@ def main(cmdline, pkgpath):
     parser.add_argument("--insecure-password-without-warning", action='store_true',
                         dest='insecure_password_without_warning',
                         help=argparse.SUPPRESS)
-    
+
     # ---------- AxonOps Workbench
     # Custom arguments
     parser.add_argument("--log", help="Specify the path of the log file")
@@ -2633,7 +2633,7 @@ def main(cmdline, pkgpath):
     if cfarguments.cversion is not None:
         print(CUSTOM_VERSION)
         sys.exit(0)
-        
+
     givenUsername = None
     givenPassword = None
     overrideHost = None
@@ -2648,6 +2648,15 @@ def main(cmdline, pkgpath):
     isBasic = False
     testArgument = None
     global isBasicGlobal
+
+    if cfarguments.initialize is not None:
+        try:
+            get_password("AxonOpsWorkbenchPrivateKey", "key")
+        except:
+            pass
+
+        print("KEYWORD:INIT:COMPLETED")
+        sys.exit(0)
 
     # Got a username and password
     if cfarguments.username is not None and cfarguments.password is not None:
@@ -2675,9 +2684,6 @@ def main(cmdline, pkgpath):
             givenUsername = cfarguments.username
             givenPassword = cfarguments.password
             pass
-        if cfarguments.initialize is not None:
-            print("KEYWORD:INIT:COMPLETED")
-            sys.exit(0)
 
     if cfarguments.overrideHost is not None:
         overrideHost = cfarguments.overrideHost
@@ -2695,19 +2701,19 @@ def main(cmdline, pkgpath):
     if cfarguments.basic is not None:
         isBasic = True
         isBasicGlobal = True
-        
+
     # Checks
     if cfarguments.port is not None:
         givenPort = cfarguments.port
     if cfarguments.ip is not None:
         givenHost = cfarguments.ip
-        
+
     if cfarguments.cqlshrc is not None:
         configFile = cfarguments.cqlshrc
 
     if cfarguments.log is not None:
         givenHistory = cfarguments.log
-    
+
     if cfarguments.test is not None:
         testArgument = cfarguments.test
     # ----------
