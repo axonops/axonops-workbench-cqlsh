@@ -975,18 +975,28 @@ class Shell(cmd.Cmd):
                 identifiers = [next((token[1] for token in sublist if token[0] in ('identifier', 'reserved_identifier')), None) for sublist in statements]
                 identifiers = [identifier for identifier in identifiers if identifier is not None]  # Remove None values
 
-                next_identifiers = ''
+                stNextidentifier = '',
+                ndNextidentifier = ''
 
                 try:
-                    next_identifiers = statements[0][1][1]
+                    stNextidentifier = statements[0][1][1]
+                except:
+                    pass
+
+
+                try:
+                    ndNextidentifier = statements[0][2][1]
                 except:
                     pass
 
                 finalOutput = f"KEYWORD:STATEMENTS:IDENTIFIERS:[{','.join(identifiers)}]"
 
-                if len(next_identifiers) > 0:
-                    finalOutput = f"{finalOutput}[{next_identifiers}]"
-                    isJSONKeywordFound = f"{next_identifiers}".lower() == "json"
+                if len(stNextidentifier) > 0:
+                    finalOutput = f"{finalOutput}[{stNextidentifier}]"
+                    isJSONKeywordFound = f"{stNextidentifier}".lower() == "json"
+                
+                if len(ndNextidentifier) > 0:
+                    finalOutput = f"{finalOutput}[{ndNextidentifier}]"
 
                 print(f"{finalOutput}")
         except:
