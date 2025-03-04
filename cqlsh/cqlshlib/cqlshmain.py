@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+import select
 import time
 import traceback
 import warnings
@@ -341,6 +342,7 @@ class Shell(cmd.Cmd):
                  givenHost = None,
                  isBasic = False,
                  testArgument = None,
+                 isStopFileExecutionOnError = False,
                  # ----------
 
                  single_statement=None,
@@ -383,6 +385,7 @@ class Shell(cmd.Cmd):
         self.givenHost=givenHost
         self.isBasic=isBasic
         self.testArgument = testArgument
+        self.isStopFileExecutionOnError = isStopFileExecutionOnError
         # ----------
 
         # ---------- AxonOps Workbench
@@ -935,10 +938,31 @@ class Shell(cmd.Cmd):
                     print('')
 
     def onecmd(self, statementtext):
+        # if self.is_subshell:
+        #     try:
+        #         if len(re.findall(r'KEYWORD:STATEMENT:IGNORE-\d+', sys.stdin.readline())) > 0:
+        #                 self.stop = True
+                        
+        #                 try:
+        #                     self.stdin.close()
+        #                 except:
+        #                     pass
+                        
+        #                 return True
+        #     except:
+        #         pass
+
         # ---------- AxonOps Workbench
         if len(re.findall(r'KEYWORD:STATEMENT:IGNORE-\d+', statementtext)) > 0:
+            if self.is_subshell:
+                self.stop = True
+                try:
+                    self.stdin.close()
+                except:
+                    pass
             return True
         # ----------
+        
         """
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
@@ -1754,7 +1778,23 @@ class Shell(cmd.Cmd):
 
         See also the --file option to cqlsh.
         """
+
+        # ---------- AxonOps Workbench
+        isStopFileExecutionOnError = False
+
         fname = parsed.get_binding('fname')
+        
+        try:
+            pattern = r"{KEYWORD:STOPONERROR:(.*?)}'*$"
+            match = re.search(pattern, fname)
+            
+            if match:
+                isStopFileExecutionOnError = True if match.group(1) == 'TRUE' else False
+                fname = f"{fname[:match.start()]}'"
+        except:
+            pass
+        # ----------
+        
         fname = os.path.expanduser(self.cql_unprotect_value(fname))
         try:
             encoding, bom_size = get_file_encoding_bomsize(fname)
@@ -1794,6 +1834,7 @@ class Shell(cmd.Cmd):
                          givenHost = self.givenHost,
                          isBasic = self.isBasic,
                          testArgument = self.testArgument,
+                         isStopFileExecutionOnError = isStopFileExecutionOnError,
                          # ----------
 
                          auth_provider=self.auth_provider)
@@ -1801,7 +1842,32 @@ class Shell(cmd.Cmd):
         if self.coverage:
             subshell.coverage = True
             subshell.coveragerc_path = self.coveragerc_path
-        subshell.cmdloop()
+        
+        # ---------- AxonOps Workbench
+        def monitor_input(subshell):
+            while not subshell.stop:
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if rlist:
+                    try:
+                        sys.stdin.read(1)
+                        subshell.stop = True
+                        break
+                    except Exception as e:
+                        pass
+
+        monitor_thread = threading.Thread(target=monitor_input, args=(subshell,))
+        monitor_thread.daemon = True
+        monitor_thread.start()
+
+        try:
+            subshell.cmdloop()
+        finally:
+            monitor_thread.join()
+
+        if not self.isBasic:
+            print("KEYWORD:OUTPUT:SOURCE:COMPLETED")
+        # ----------
+
         f.close()
 
     def do_capture(self, parsed):
@@ -2200,6 +2266,15 @@ class Shell(cmd.Cmd):
             print("KEYWORD:ERROR:COMPLETED")
         # ----------
 
+        # ---------- AxonOps Workbench
+        if self.is_subshell and self.isStopFileExecutionOnError:
+            self.stop = True
+            try:
+                self.stdin.close()
+            except:
+                pass
+        # ----------
+
     def stop_coverage(self):
         if self.coverage and self.cov is not None:
             self.cov.stop()
@@ -2264,7 +2339,6 @@ class Shell(cmd.Cmd):
         if value.isdigit():
             return True, int(value)
         return Shell.on_off_switch(name, current, value), None
-
 
 def option_with_default(cparser_getter, section, option, default=None):
     try:
