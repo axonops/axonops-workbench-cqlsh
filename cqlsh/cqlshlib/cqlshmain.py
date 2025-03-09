@@ -425,7 +425,7 @@ class Shell(cmd.Cmd):
             self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
                                 auth_provider=self.auth_provider,
                                 # ---------- AxonOps Workbench
-                                timestamp_generator=MonotonicTimestampGenerator() if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'MonotonicTimestampGenerator') else None,
+                                timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
                                 ssl_options=sslhandling.ssl_settings(hostname, self.config_file, varsManifest=self.varsManifest, varsValues=self.varsValues, workspaceID=self.workspaceID) if ssl else None,
                                 # ----------
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
@@ -2083,7 +2083,7 @@ class Shell(cmd.Cmd):
 
         conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=self.conn.cql_version,
                        # ---------- AxonOps Workbench
-                       timestamp_generator=MonotonicTimestampGenerator() if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'MonotonicTimestampGenerator') else None,
+                       timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
                        # ----------
                        protocol_version=self.conn.protocol_version,
                        auth_provider=auth_provider,
