@@ -42,6 +42,7 @@ from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata, TableMetadata)
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
 from cassandra.util import datetime_from_timestamp
+from cassandra.timestamps import MonotonicTimestampGenerator
 
 from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
 from cqlshlib.copyutil import ExportTask, ImportTask
@@ -76,6 +77,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 isBasicGlobal = False
 isStartPrinted = False
 isJSONKeywordFound = False
+timestampGenerator = "NOT-SET"
 
 # The current release version of the binaries
 CUSTOM_VERSION = '0.11.0'
@@ -415,9 +417,15 @@ class Shell(cmd.Cmd):
             kwargs = {}
             if protocol_version is not None:
                 kwargs['protocol_version'] = protocol_version
+
+            # ---------- AxonOps Workbench
+            global timestampGenerator
+            # ----------
+
             self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
                                 auth_provider=self.auth_provider,
                                 # ---------- AxonOps Workbench
+                                timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
                                 ssl_options=sslhandling.ssl_settings(hostname, self.config_file, varsManifest=self.varsManifest, varsValues=self.varsValues, workspaceID=self.workspaceID) if ssl else None,
                                 # ----------
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
@@ -2069,7 +2077,14 @@ class Shell(cmd.Cmd):
 
         auth_provider = PlainTextAuthProvider(username=username, password=password)
 
+        # ---------- AxonOps Workbench
+        global timestampGenerator
+        # ----------
+
         conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=self.conn.cql_version,
+                       # ---------- AxonOps Workbench
+                       timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
+                       # ----------
                        protocol_version=self.conn.protocol_version,
                        auth_provider=auth_provider,
                        ssl_options=self.conn.ssl_options,
@@ -2460,6 +2475,10 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
     # ---------- AxonOps Workbench
     argvalues.username = givenUsername
     argvalues.password = givenPassword
+
+    global timestampGenerator
+
+    timestampGenerator = option_with_default(configs.get, 'connection', 'timestamp_generator', 'NOT-SET')
     # ----------
 
     argvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
