@@ -574,6 +574,16 @@ class Shell(cmd.Cmd):
                 'address': host.address,
                 'datacenter': host.datacenter
                 })
+
+            try:
+                host_info = self.session.cluster.metadata.get_host(self.overrideHost)
+                datacenters.append({
+                'address': self.overrideHost,
+                'datacenter': host_info.datacenter
+                })
+            except:
+                pass
+
             info.setdefault("datacenters", datacenters)
 
             print(info)
