@@ -575,6 +575,7 @@ class Shell(cmd.Cmd):
                 'datacenter': host.datacenter
                 })
 
+            # Attempt to get the host info
             try:
                 host_info = self.session.cluster.metadata.get_host(self.overrideHost)
                 datacenters.append({
@@ -1296,6 +1297,8 @@ class Shell(cmd.Cmd):
         # ---------- AxonOps Workbench
         if not self.isBasic and not isJSONKeywordFound:
             try:
+                print("KEYWORD:JSON:STARTED")
+                print("[")
                 all_rows = [
                     {c: self.myformat_value(row[c], cql_type) for c, cql_type in zip(column_names, cql_types)}
                     for row in result.all()
@@ -1304,8 +1307,10 @@ class Shell(cmd.Cmd):
                 for row in all_rows:
                     for key in row:
                         row[key] = row[key].strval
-                    print(row)
+                    print(f"{row},")
 
+                print("]")
+                print("KEYWORD:JSON:COMPLETED")
                 return
             except:
                 pass
