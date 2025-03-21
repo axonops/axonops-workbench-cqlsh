@@ -29,3 +29,4 @@ wheel==0.43.0
 zipp==3.19.2
 pyreadline3
 wcwidth
+json_repair
