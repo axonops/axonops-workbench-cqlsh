@@ -71,6 +71,8 @@ from keyring import get_password, set_keyring, backends
 import json
 import threading
 import platform
+from json_repair import repair_json
+import tempfile
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -1298,7 +1300,6 @@ class Shell(cmd.Cmd):
         if not self.isBasic and not isJSONKeywordFound:
             try:
                 print("KEYWORD:JSON:STARTED")
-                print("[")
                 all_rows = [
                     {c: self.myformat_value(row[c], cql_type) for c, cql_type in zip(column_names, cql_types)}
                     for row in result.all()
@@ -1307,9 +1308,27 @@ class Shell(cmd.Cmd):
                 for row in all_rows:
                     for key in row:
                         row[key] = row[key].strval
-                    print(f"{row},")
+                
+                rows = json.dumps(all_rows)
+                
+                original_rows = f"{rows}"
+                
+                try:
+                    rows = repair_json(rows)
+                except:
+                    rows = original_rows
 
-                print("]")
+                tempFileName = f"{tempfile.NamedTemporaryFile().name}._wb.txt"
+                f = open(tempFileName, "a")
+
+                f.write(rows)
+
+                if platform.system() == 'Windows':
+                    tempFileName = f"{tempFileName}".replace('\\', '\\\\')
+
+                print(tempFileName)
+                f.close()
+
                 print("KEYWORD:JSON:COMPLETED")
                 return
             except:
