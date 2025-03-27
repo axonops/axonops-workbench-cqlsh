@@ -1,8 +1,6 @@
 # AxonOps Workbench cqlsh project
 The associated project AxonOps™ Developer Workbench for Apache Cassandra® (https://github.com/axonops/axonops-workbench) uses to build CQLSH for internal use within the application
 
-Here's a credit section you can add to your README:
-
 ## Acknowledgements
 
 This project is a fork of the `cqlsh` utility, originally developed as part of the Apache Cassandra™ project. We extend our sincere gratitude to the Apache Cassandra community for their outstanding work.
