@@ -29,7 +29,7 @@ This project provides Software Bill of Materials (SBOM) files with each release,
 - Transparency: Clear visibility into the software supply chain
 - Risk Management: Better understand and assess potential risks in the software stack
 
-You can find our SBOM files in each [release](releases) as part of the release artifacts. These files are automatically generated during our build process to ensure they remain current with each release.
+You can find our SBOM files in each [release](https://github.com/axonops/axonops-workbench-cqlsh/releases) as part of the release artifacts. These files are automatically generated during our build process to ensure they remain current with each release.
 
 **Using SBOM Files**
 - Download the SBOM file in your preferred format from the release assets
