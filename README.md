@@ -12,9 +12,8 @@ Apache Cassandra is a free and open-source, distributed, wide-column store, NoSQ
 ### Apache Cassandra Resources
 
 - **Official Website**: [cassandra.apache.org](https://cassandra.apache.org/)
-- **Source Code**: Available on [GitHub](https://github.com/apache/cassandra) or the primary Apache Git repository at `gitbox.apache.org/repos/asf/cassandra.git`[3]
+- **Source Code**: Available on [GitHub](https://github.com/apache/cassandra) or the primary Apache Git repository at `gitbox.apache.org/repos/asf/cassandra.git`
 - **Documentation**: Comprehensive guides and references available at the [Apache Cassandra website](https://cassandra.apache.org/)
-- **Latest Release**: Cassandra 5.0 (as of January 2024) with full Java 17 support, improved memory management, vectorized query execution, and enhanced security features[4]
 
 This fork maintains the spirit of the original project while adding specific functionality for our use case. We encourage users to explore and contribute to the main Apache Cassandra project.
 
