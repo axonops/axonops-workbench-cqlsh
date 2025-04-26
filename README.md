@@ -3,7 +3,7 @@ The associated project [AxonOps Workbench](https://axonops.com/workbench/) for A
 
 ## Acknowledgements
 
-This project is a fork of the `cqlsh` utility, originally developed as part of the Apache Cassandra project. We extend our sincere gratitude to the Apache Cassandra community for their outstanding work.
+This project is a fork of the `cqlsh` utility, developed as part of the Apache Cassandra project. We only extend it to support the integration with Workbench, the rest of the code comes from the Cassandra community and we extend our sincere gratitude to them for their outstanding work.
 
 Apache Cassandra is a free and open-source, distributed, wide-column store, NoSQL database management system designed to handle large amounts of data across many commodity servers, providing high availability with no single point of failure.
 
