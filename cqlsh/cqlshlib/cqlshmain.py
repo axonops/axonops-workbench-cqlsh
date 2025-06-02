@@ -35,6 +35,9 @@ from uuid import UUID
 
 import cassandra
 from cassandra.auth import PlainTextAuthProvider
+# ---------- AxonOps Workbench
+from cassandra.cluster import ExecutionProfile, EXEC_PROFILE_DEFAULT, _NOT_SET
+# ----------
 from cassandra.cluster import Cluster
 from cassandra.cqltypes import cql_typename
 from cassandra.marshal import int64_unpack
@@ -73,6 +76,7 @@ import threading
 import platform
 from json_repair import repair_json
 import tempfile
+from cqlshlib.driver import cluster_factory
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -333,6 +337,7 @@ class Shell(cmd.Cmd):
                  ssl=False,
 
                  # ---------- AxonOps Workbench
+                 secure_connect_bundle=None,
                  givenUsername = None,
                  givenPassword = None,
                  overrideHost = None,
@@ -413,6 +418,19 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_enabled
         self.page_size = self.default_page_size
         self.expand_enabled = expand_enabled
+
+        # ---------- AxonOps Workbench
+        self.secure_connect_bundle = secure_connect_bundle
+
+        if secure_connect_bundle is not None:
+            execution_profile = ExecutionProfile(row_factory=ordered_dict_factory,
+                                                request_timeout=request_timeout,
+                                                consistency_level=cassandra.ConsistencyLevel.LOCAL_ONE,
+                                                serial_consistency_level=cassandra.ConsistencyLevel.SERIAL)
+
+            self.execution_profiles = {EXEC_PROFILE_DEFAULT: execution_profile}
+        # ----------   
+
         if use_conn:
             self.conn = use_conn
         else:
@@ -422,18 +440,30 @@ class Shell(cmd.Cmd):
 
             # ---------- AxonOps Workbench
             global timestampGenerator
+            if self.secure_connect_bundle is None:
+                self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
+                                    auth_provider=self.auth_provider,
+                                    # ---------- AxonOps Workbench
+                                    timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
+                                    ssl_options=sslhandling.ssl_settings(hostname, self.config_file, varsManifest=self.varsManifest, varsValues=self.varsValues, workspaceID=self.workspaceID) if ssl else None,
+                                    # ----------
+                                    load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+                                    control_connection_timeout=connect_timeout,
+                                    connect_timeout=connect_timeout,
+                                    **kwargs)
+            else:
+                self.conn = cluster_factory(host=self.hostname, port=self.port, cql_version=cqlver,
+                                    auth_provider=self.auth_provider,
+                                    # ---------- AxonOps Workbench
+                                    timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
+                                    ssl_options=sslhandling.ssl_settings(hostname, self.config_file, varsManifest=self.varsManifest, varsValues=self.varsValues, workspaceID=self.workspaceID) if ssl else None,
+                                    secure_connect_bundle=secure_connect_bundle,
+                                    execution_profiles=self.execution_profiles,
+                                    # ----------
+                                    control_connection_timeout=connect_timeout,
+                                    connect_timeout=connect_timeout,
+                                    **kwargs)
             # ----------
-
-            self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
-                                auth_provider=self.auth_provider,
-                                # ---------- AxonOps Workbench
-                                timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
-                                ssl_options=sslhandling.ssl_settings(hostname, self.config_file, varsManifest=self.varsManifest, varsValues=self.varsValues, workspaceID=self.workspaceID) if ssl else None,
-                                # ----------
-                                load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
-                                control_connection_timeout=connect_timeout,
-                                connect_timeout=connect_timeout,
-                                **kwargs)
         self.owns_connection = not use_conn
 
         if keyspace:
@@ -456,9 +486,13 @@ class Shell(cmd.Cmd):
 
         self.display_timezone = display_timezone
 
-        self.session.default_timeout = request_timeout
-        self.session.row_factory = ordered_dict_factory
-        self.session.default_consistency_level = cassandra.ConsistencyLevel.ONE
+        # ---------- AxonOps Workbench
+        if self.secure_connect_bundle is None:
+            self.session.default_timeout = request_timeout
+            self.session.row_factory = ordered_dict_factory
+            self.session.default_consistency_level = cassandra.ConsistencyLevel.ONE
+        # ----------
+
         self.get_connection_versions()
         self.set_cql_version(self.connection_versions['cql'])
 
@@ -2114,17 +2148,29 @@ class Shell(cmd.Cmd):
         # ---------- AxonOps Workbench
         global timestampGenerator
         # ----------
-
-        conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=self.conn.cql_version,
-                       # ---------- AxonOps Workbench
-                       timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
-                       # ----------
-                       protocol_version=self.conn.protocol_version,
-                       auth_provider=auth_provider,
-                       ssl_options=self.conn.ssl_options,
-                       load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
-                       control_connection_timeout=self.conn.connect_timeout,
-                       connect_timeout=self.conn.connect_timeout)
+        if self.secure_connect_bundle is None:
+            conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=self.conn.cql_version,
+                        # ---------- AxonOps Workbench
+                        timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
+                        # ----------
+                        protocol_version=self.conn.protocol_version,
+                        auth_provider=auth_provider,
+                        ssl_options=self.conn.ssl_options,
+                        load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+                        control_connection_timeout=self.conn.connect_timeout,
+                        connect_timeout=self.conn.connect_timeout)
+        else:
+            conn = cluster_factory(host=self.hostname, port=self.port, cql_version=self.conn.cql_version,
+                        # ---------- AxonOps Workbench
+                        timestamp_generator=None if (timestampGenerator == 'NOT-SET' or timestampGenerator == 'None') else MonotonicTimestampGenerator(),
+                        secure_connect_bundle=self.secure_connect_bundle,
+                        execution_profiles=self.execution_profiles,
+                        # ----------
+                        protocol_version=self.conn.protocol_version,
+                        auth_provider=auth_provider,
+                        ssl_options=self.conn.ssl_options,
+                        control_connection_timeout=self.conn.connect_timeout,
+                        connect_timeout=self.conn.connect_timeout)            
 
         if self.current_keyspace:
             session = conn.connect(self.current_keyspace)
@@ -2132,9 +2178,13 @@ class Shell(cmd.Cmd):
             session = conn.connect()
 
         # Copy session properties
-        session.default_timeout = self.session.default_timeout
-        session.row_factory = self.session.row_factory
-        session.default_consistency_level = self.session.default_consistency_level
+        # ---------- AxonOps Workbench
+        if self.secure_connect_bundle is None:
+            session.default_timeout = self.session.default_timeout
+            session.row_factory = self.session.row_factory
+            session.default_consistency_level = self.session.default_consistency_level
+        # ----------
+
         session.max_trace_wait = self.session.max_trace_wait
 
         # Update after we've connected in case we fail to authenticate
@@ -2513,6 +2563,8 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
     global timestampGenerator
 
     timestampGenerator = option_with_default(configs.get, 'connection', 'timestamp_generator', 'NOT-SET')
+
+    argvalues.secure_connect_bundle = option_with_default(configs.get, 'connection', 'secure_connect_bundle')
     # ----------
 
     argvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
@@ -2713,6 +2765,11 @@ def main(cmdline, pkgpath):
     parser.add_argument("-u", "--username", help="Authenticate as user.")
     parser.add_argument("-p", "--password", help="Authenticate using password.")
     parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
+
+    # ---------- AxonOps Workbench
+    parser.add_argument('-b', '--secure-connect-bundle', help="Connect using secure connect bundle. If this option is specified host, port settings are ignored")
+    # ----------
+
     parser.add_argument("-f", "--file", help="Execute commands from FILE, then exit")
     parser.add_argument('--debug', action='store_true',
                         help='Show additional debugging information')
@@ -2983,6 +3040,7 @@ def main(cmdline, pkgpath):
                       givenHost = givenHost,
                       isBasic = isBasic,
                       testArgument = testArgument,
+                      secure_connect_bundle=options.secure_connect_bundle,
                       # ----------
 
                       auth_provider=authproviderhandling.load_auth_provider(
