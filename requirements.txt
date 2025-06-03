@@ -23,7 +23,7 @@ pyinstaller==6.9.0
 pyinstaller-hooks-contrib==2024.7
 pytz==2022.7.1
 SecretStorage==3.3.3
-setuptools==70.3.0
+setuptools==78.1.1
 wheel==0.43.0
 zipp==3.19.2
 pyreadline3
