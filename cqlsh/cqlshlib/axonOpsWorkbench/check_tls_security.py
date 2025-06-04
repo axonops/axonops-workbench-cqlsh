@@ -372,8 +372,7 @@ def check_tls_security(connection_info):
     
     return warnings
 
-
-def checkTLSSecurityBackground(id, session):
+def checkTLSSecurity(session):
     """Main function to check TLS security in background thread"""
     result = {
         'status': 'error',
@@ -445,7 +444,10 @@ def checkTLSSecurityBackground(id, session):
             'recommendation': 'Check error details and contact support if needed'
         })
     
-    # Write results to file
+    return result
+
+def checkTLSSecurityBackground(id, session):
+    result = checkTLSSecurity(session)
     file_name = path.join(tempfile.gettempdir(), f"{id}.tlscheck")
     with open(file_name, "w") as f:
         json.dump(result, f, indent=2)
