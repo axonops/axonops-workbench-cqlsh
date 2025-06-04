@@ -954,7 +954,8 @@ class Shell(cmd.Cmd):
                         metadata_id = re.findall(r'\((.+)\)', line)
                         if len(metadata_id) <= 0:
                             print(axonOpsWorkbench.printMetadata(self.session))
-                            print("KEYWORD:PROCESS:COMPLETED")
+                            if not self.isBasic:
+                                print("KEYWORD:PROCESS:COMPLETED")
                         else:
                             metadata_id = metadata_id[0]
                             printProcess = threading.Thread(target=axonOpsWorkbench.printMetadataBackground, args=(metadata_id, self.session))
@@ -965,8 +966,8 @@ class Shell(cmd.Cmd):
                     Print the CQL description of a specified scope
                     """
                     if "print cql_desc" in line:
-                        info = re.findall(r'\((.*?)\)', line)
-                        printProcess = threading.Thread(target=axonOpsWorkbench.printCQLDescBackground, args=(info[0], info[1], self.session))
+                        cql_desc_info = re.findall(r'\((.*?)\)', line)
+                        printProcess = threading.Thread(target=axonOpsWorkbench.printCQLDescBackground, args=(cql_desc_info[0], cql_desc_info[1], self.session))
                         printProcess.start()
                         notCustom = False
 
@@ -974,8 +975,8 @@ class Shell(cmd.Cmd):
                     Check the connectivity with the current cluster/node
                     """
                     if "check connection" in line:
-                        info = re.findall(r'\((.*?)\)', line)
-                        checkProcess = threading.Thread(target=axonOpsWorkbench.checkConnectivityBackground, args=(info[0], self.session))
+                        check_conn_info = re.findall(r'\((.*?)\)', line)
+                        checkProcess = threading.Thread(target=axonOpsWorkbench.checkConnectivityBackground, args=(check_conn_info[0], self.session))
                         checkProcess.start()
                         notCustom = False
 
@@ -983,9 +984,14 @@ class Shell(cmd.Cmd):
                     Check TLS/SSL security configuration
                     """
                     if "check tls_security" in line:
-                        info = re.findall(r'\((.*?)\)', line)
-                        tlsCheckProcess = threading.Thread(target=axonOpsWorkbench.checkTLSSecurityBackground, args=(info[0], self.session))
-                        tlsCheckProcess.start()
+                        check_tls_info = re.findall(r'\((.*?)\)', line)
+                        if len(check_tls_info) <= 0:
+                            print(json.dumps(axonOpsWorkbench.checkTLSSecurity(self.session), indent=2))
+                            if not self.isBasic:
+                                print("KEYWORD:PROCESS:COMPLETED")
+                        else:
+                            tlsCheckProcess = threading.Thread(target=axonOpsWorkbench.checkTLSSecurityBackground, args=(check_tls_info[0], self.session))
+                            tlsCheckProcess.start()
                         notCustom = False
 
                     if notCustom is True:
