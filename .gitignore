@@ -5,3 +5,13 @@
 **/*.spec
 */*.pyc
 **/__pycache__
+
+# Claude AI and Claude configuration files
+.claude*
+claude.json
+claude.config*
+CLAUDE.md
+.clauderc
+*.claude
+claude-*
+.claude/

@@ -979,6 +979,15 @@ class Shell(cmd.Cmd):
                         checkProcess.start()
                         notCustom = False
 
+                    """
+                    Check TLS/SSL security configuration
+                    """
+                    if "check tls_security" in line:
+                        info = re.findall(r'\((.*?)\)', line)
+                        tlsCheckProcess = threading.Thread(target=axonOpsWorkbench.checkTLSSecurityBackground, args=(info[0], self.session))
+                        tlsCheckProcess.start()
+                        notCustom = False
+
                     if notCustom is True:
                     # ----------
                         self.statement.write(line)
