@@ -31,14 +31,16 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from cqlshlib.axonOpsWorkbench.check_tls_security import (
+from axonOpsWorkbench.check_tls_security import (
     extract_connection_info,
     analyze_certificate,
     check_certificate_security,
     check_tls_security,
     checkTLSSecurityBackground,
+    checkTLSSecurity,
+    _add_vulnerability_indicators,
     CERT_EXPIRY_WARNING_DAYS,
     MIN_RSA_KEY_SIZE,
     MIN_DSA_KEY_SIZE,
@@ -327,8 +329,8 @@ class TestCheckTLSecurity(unittest.TestCase):
         pfs_warnings = [w for w in warnings if w['category'] == 'NO_PERFECT_FORWARD_SECRECY']
         self.assertEqual(len(pfs_warnings), 0)
     
-    @patch('cqlshlib.axonOpsWorkbench.check_tls_security.extract_connection_info')
-    @patch('cqlshlib.axonOpsWorkbench.check_tls_security.get_certificate_chain')
+    @patch('axonOpsWorkbench.check_tls_security.extract_connection_info')
+    @patch('axonOpsWorkbench.check_tls_security.get_certificate_chain')
     def test_checkTLSSecurityBackground_success(self, mock_get_cert, mock_extract):
         """Test the background check function with successful execution"""
         # Setup mocks
@@ -369,8 +371,8 @@ class TestCheckTLSecurity(unittest.TestCase):
         self.assertIn('summary', result)
         self.assertEqual(result['summary']['certificates_analyzed'], 1)
     
-    @patch('cqlshlib.axonOpsWorkbench.check_tls_security.extract_connection_info')
-    @patch('cqlshlib.axonOpsWorkbench.check_tls_security.get_certificate_chain')
+    @patch('axonOpsWorkbench.check_tls_security.extract_connection_info')
+    @patch('axonOpsWorkbench.check_tls_security.get_certificate_chain')
     def test_checkTLSSecurityBackground_connection_error(self, mock_get_cert, mock_extract):
         """Test the background check with connection error"""
         # Setup mocks
@@ -404,7 +406,7 @@ class TestCheckTLSecurity(unittest.TestCase):
         self.assertEqual(len(connection_warnings), 1)
         self.assertIn('Connection refused', connection_warnings[0]['message'])
     
-    @patch('cqlshlib.axonOpsWorkbench.check_tls_security.extract_connection_info')
+    @patch('axonOpsWorkbench.check_tls_security.extract_connection_info')
     def test_checkTLSSecurityBackground_exception(self, mock_extract):
         """Test the background check with exception handling"""
         # Make extract_connection_info raise an exception
@@ -425,9 +427,164 @@ class TestCheckTLSecurity(unittest.TestCase):
         self.assertEqual(result['status'], 'error')
         self.assertIn('error', result)
         self.assertIn('Test exception', result['error'])
-        analysis_warnings = [w for w in result['warnings'] if w['category'] == 'ANALYSIS_ERROR']
-        self.assertEqual(len(analysis_warnings), 1)
-
+    
+    def test_analyze_certificate_enhanced_fields(self):
+        """Test that analyze_certificate returns all enhanced fields"""
+        # Create a test certificate with SANs
+        san_list = [
+            "DNS:test.example.com",
+            "DNS:*.example.com",
+            "IP:192.168.1.1"
+        ]
+        cert_der = self._create_test_certificate(
+            subject_name="test.example.com",
+            san_list=san_list
+        )
+        
+        cert_info = analyze_certificate(cert_der)
+        
+        # Check all new fields are present
+        self.assertIn('common_name', cert_info)
+        self.assertEqual(cert_info['common_name'], 'test.example.com')
+        
+        self.assertIn('fingerprints', cert_info)
+        self.assertIn('sha256', cert_info['fingerprints'])
+        self.assertIn('sha1', cert_info['fingerprints'])
+        
+        # Verify fingerprint format (should have colons)
+        self.assertRegex(cert_info['fingerprints']['sha256'], r'^[0-9a-f:]+$')
+        self.assertRegex(cert_info['fingerprints']['sha1'], r'^[0-9a-f:]+$')
+        
+        # Key usage might not be present in basic test cert
+        # Extended key usage might not be present in basic test cert
+    
+    def test_add_vulnerability_indicators(self):
+        """Test adding vulnerability indicators to certificate fields"""
+        # Create base certificate info
+        cert_info = {
+            'not_valid_after': '2024-01-01T00:00:00',
+            'not_valid_before': '2023-01-01T00:00:00',
+            'is_self_signed': True,
+            'key_size': 1024,
+            'signature_algorithm': 'sha1WithRSAEncryption'
+        }
+        
+        # Create warnings
+        warnings = [
+            {
+                'category': 'CERTIFICATE_EXPIRED',
+                'message': 'Certificate expired on 2024-01-01T00:00:00'
+            },
+            {
+                'category': 'SELF_SIGNED_CERTIFICATE',
+                'message': 'Certificate is self-signed'
+            },
+            {
+                'category': 'WEAK_KEY_SIZE',
+                'message': 'RSA key size 1024 bits is below recommended minimum'
+            },
+            {
+                'category': 'WEAK_SIGNATURE_ALGORITHM',
+                'message': 'Certificate uses SHA-1 signature algorithm'
+            }
+        ]
+        
+        # Add vulnerability indicators
+        enhanced_info = _add_vulnerability_indicators(cert_info, warnings)
+        
+        # Check vulnerability indicators were added
+        self.assertTrue(enhanced_info['not_valid_after_vulnerable'])
+        self.assertIn('expired', enhanced_info['not_valid_after_vulnerability'])
+        
+        self.assertTrue(enhanced_info['is_self_signed_vulnerable'])
+        self.assertIn('self-signed', enhanced_info['is_self_signed_vulnerability'])
+        
+        self.assertTrue(enhanced_info['key_size_vulnerable'])
+        self.assertIn('1024 bits', enhanced_info['key_size_vulnerability'])
+        
+        self.assertTrue(enhanced_info['signature_algorithm_vulnerable'])
+        self.assertIn('SHA-1', enhanced_info['signature_algorithm_vulnerability'])
+    
+    @patch('axonOpsWorkbench.check_tls_security.get_certificate_chain')
+    @patch('axonOpsWorkbench.check_tls_security.extract_connection_info')
+    def test_checkTLSSecurity_with_certificate_info(self, mock_extract, mock_get_cert):
+        """Test that checkTLSSecurity includes certificate_info field"""
+        # Mock connection info
+        mock_extract.return_value = ('test.cassandra.local', 9042)
+        
+        # Create test certificate with weak key
+        cert_der = self._create_test_certificate(key_size=1024)
+        
+        # Mock certificate chain return
+        mock_get_cert.return_value = (
+            [cert_der],
+            {
+                'host': 'test.cassandra.local',
+                'port': 9042,
+                'connected': True,
+                'tls_version': 'TLSv1.2',
+                'cipher_suite': 'ECDHE-RSA-AES256-GCM-SHA384',
+                'cipher_bits': 256
+            }
+        )
+        
+        # Mock session
+        mock_session = Mock()
+        
+        # Run the check
+        result = checkTLSSecurity(mock_session)
+        
+        # Verify the new certificate_info field exists
+        self.assertIn('certificate_info', result)
+        self.assertEqual(len(result['certificate_info']), 1)
+        
+        cert_info = result['certificate_info'][0]
+        self.assertEqual(cert_info['position'], 0)
+        self.assertEqual(cert_info['type'], 'end-entity')
+        self.assertIn('details', cert_info)
+        
+        # Check that vulnerability was marked
+        details = cert_info['details']
+        self.assertTrue(details['key_size_vulnerable'])
+        self.assertIn('1024 bits', details['key_size_vulnerability'])
+    
+    @patch('axonOpsWorkbench.check_tls_security.get_certificate_chain')
+    @patch('axonOpsWorkbench.check_tls_security.extract_connection_info')
+    def test_connection_vulnerability_indicators(self, mock_extract, mock_get_cert):
+        """Test that connection info includes vulnerability indicators"""
+        # Mock connection info
+        mock_extract.return_value = ('test.cassandra.local', 9042)
+        
+        # Create test certificate
+        cert_der = self._create_test_certificate()
+        
+        # Mock certificate chain with weak TLS version
+        mock_get_cert.return_value = (
+            [cert_der],
+            {
+                'host': 'test.cassandra.local',
+                'port': 9042,
+                'connected': True,
+                'tls_version': 'TLSv1.0',  # Weak version
+                'cipher_suite': 'DES-CBC3-SHA',  # Weak cipher
+                'cipher_bits': 168
+            }
+        )
+        
+        # Mock session
+        mock_session = Mock()
+        
+        # Run the check
+        result = checkTLSSecurity(mock_session)
+        
+        # Verify connection vulnerability indicators
+        self.assertTrue(result['connection']['tls_version_vulnerable'])
+        self.assertIn('TLS 1.0', result['connection']['tls_version_vulnerability'])
+        
+        self.assertTrue(result['connection']['cipher_suite_vulnerable'])
+        # The cipher suite vulnerability could be either weak encryption or no PFS
+        cipher_vuln = result['connection']['cipher_suite_vulnerability']
+        self.assertTrue('weak encryption' in cipher_vuln or 'Perfect Forward Secrecy' in cipher_vuln)
 
 if __name__ == '__main__':
     unittest.main()

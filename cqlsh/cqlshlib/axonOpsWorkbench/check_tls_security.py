@@ -190,6 +190,44 @@ def analyze_certificate(cert_der):
         except x509.ExtensionNotFound:
             cert_info['subject_alternative_names'] = []
         
+        # Extract common name from subject
+        try:
+            for attribute in cert.subject:
+                if attribute.oid == x509.oid.NameOID.COMMON_NAME:
+                    cert_info['common_name'] = attribute.value
+                    break
+        except:
+            cert_info['common_name'] = None
+        
+        # Extract key usage extensions
+        try:
+            key_usage_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.KEY_USAGE)
+            key_usage = key_usage_ext.value
+            cert_info['key_usage'] = {
+                'digital_signature': key_usage.digital_signature if hasattr(key_usage, 'digital_signature') else False,
+                'key_encipherment': key_usage.key_encipherment if hasattr(key_usage, 'key_encipherment') else False,
+                'key_agreement': key_usage.key_agreement if hasattr(key_usage, 'key_agreement') else False,
+                'critical': key_usage_ext.critical
+            }
+        except x509.ExtensionNotFound:
+            cert_info['key_usage'] = None
+        
+        # Extract extended key usage
+        try:
+            ext_key_usage_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.EXTENDED_KEY_USAGE)
+            ext_usages = []
+            for usage in ext_key_usage_ext.value:
+                ext_usages.append(usage._name)
+            cert_info['extended_key_usage'] = ext_usages
+        except x509.ExtensionNotFound:
+            cert_info['extended_key_usage'] = []
+        
+        # Calculate fingerprints
+        cert_info['fingerprints'] = {
+            'sha256': cert.fingerprint(hashes.SHA256()).hex(':'),
+            'sha1': cert.fingerprint(hashes.SHA1()).hex(':')
+        }
+        
         return cert_info
         
     except Exception as e:
@@ -372,6 +410,39 @@ def check_tls_security(connection_info):
     
     return warnings
 
+def _add_vulnerability_indicators(cert_info, warnings):
+    """Add vulnerability indicators to certificate fields based on warnings"""
+    enhanced_cert_info = cert_info.copy()
+    
+    # Add vulnerability indicators for each field
+    for warning in warnings:
+        category = warning.get('category', '')
+        
+        # Certificate expiry issues
+        if category in ['CERTIFICATE_EXPIRED', 'CERTIFICATE_EXPIRING_SOON']:
+            enhanced_cert_info['not_valid_after_vulnerable'] = True
+            enhanced_cert_info['not_valid_after_vulnerability'] = warning['message']
+        elif category == 'CERTIFICATE_NOT_YET_VALID':
+            enhanced_cert_info['not_valid_before_vulnerable'] = True
+            enhanced_cert_info['not_valid_before_vulnerability'] = warning['message']
+        
+        # Self-signed certificate
+        elif category == 'SELF_SIGNED_CERTIFICATE' and enhanced_cert_info.get('is_self_signed'):
+            enhanced_cert_info['is_self_signed_vulnerable'] = True
+            enhanced_cert_info['is_self_signed_vulnerability'] = warning['message']
+        
+        # Weak key size
+        elif category == 'WEAK_KEY_SIZE':
+            enhanced_cert_info['key_size_vulnerable'] = True
+            enhanced_cert_info['key_size_vulnerability'] = warning['message']
+        
+        # Weak signature algorithm
+        elif category == 'WEAK_SIGNATURE_ALGORITHM':
+            enhanced_cert_info['signature_algorithm_vulnerable'] = True
+            enhanced_cert_info['signature_algorithm_vulnerability'] = warning['message']
+    
+    return enhanced_cert_info
+
 def checkTLSSecurity(session):
     """Main function to check TLS security in background thread"""
     result = {
@@ -379,6 +450,7 @@ def checkTLSSecurity(session):
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'connection': {},
         'certificates': [],
+        'certificate_info': [],  # New field for enhanced certificate information
         'warnings': [],
         'summary': {}
     }
@@ -404,6 +476,9 @@ def checkTLSSecurity(session):
                 cert_info = analyze_certificate(cert_der)
                 cert_warnings = check_certificate_security(cert_info, connection_info)
                 
+                # Add vulnerability indicators to cert_info
+                enhanced_cert_info = _add_vulnerability_indicators(cert_info, cert_warnings)
+                
                 cert_result = {
                     'position': i,
                     'type': 'end-entity' if i == 0 else 'intermediate',
@@ -412,10 +487,26 @@ def checkTLSSecurity(session):
                 }
                 result['certificates'].append(cert_result)
                 result['warnings'].extend(cert_warnings)
+                
+                # Add enhanced certificate info to new field
+                result['certificate_info'].append({
+                    'position': i,
+                    'type': 'end-entity' if i == 0 else 'intermediate',
+                    'details': enhanced_cert_info
+                })
             
             # Check TLS/cipher security
             tls_warnings = check_tls_security(connection_info)
             result['warnings'].extend(tls_warnings)
+            
+            # Add TLS version vulnerability indicator to connection info
+            for warning in tls_warnings:
+                if warning['category'] in ['DEPRECATED_TLS_VERSION', 'INSECURE_SSL_VERSION']:
+                    result['connection']['tls_version_vulnerable'] = True
+                    result['connection']['tls_version_vulnerability'] = warning['message']
+                elif warning['category'] in ['WEAK_CIPHER_SUITE', 'NO_PERFECT_FORWARD_SECRECY']:
+                    result['connection']['cipher_suite_vulnerable'] = True
+                    result['connection']['cipher_suite_vulnerability'] = warning['message']
             
             result['status'] = 'success'
         
