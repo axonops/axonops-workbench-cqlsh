@@ -118,9 +118,13 @@ def get_certificate_chain(host, port, timeout=10):
         'connected': False
     }
     
+    # First, try a plain socket connection to check if port is open
+    plain_sock = None
     try:
-        with socket.create_connection((host, port), timeout=timeout) as sock:
-            with context.wrap_socket(sock, server_hostname=host) as ssock:
+        plain_sock = socket.create_connection((host, port), timeout=timeout)
+        # Port is open, now try TLS
+        try:
+            with context.wrap_socket(plain_sock, server_hostname=host) as ssock:
                 # Get connection info
                 connection_info['connected'] = True
                 connection_info['tls_version'] = ssock.version()
@@ -136,33 +140,118 @@ def get_certificate_chain(host, port, timeout=10):
                 # We only get the peer certificate, not intermediates
                 # This is a limitation but sufficient for most security checks
                 
-    except ssl.SSLError as e:
-        connection_info['ssl_error'] = str(e)
+        except ssl.SSLError as e:
+            error_str = str(e)
+            # Common SSL errors that indicate non-TLS service
+            if any(indicator in error_str.lower() for indicator in [
+                'wrong version number',
+                'unknown protocol',
+                'https proxy request',
+                'http request',
+                'inappropriate fallback',
+                'sslv3 alert handshake failure',
+                'tlsv1 alert protocol version'
+            ]):
+                connection_info['error_type'] = 'NO_TLS'
+                connection_info['error'] = f"Service at {host}:{port} does not appear to be using TLS/SSL"
+            else:
+                connection_info['error_type'] = 'SSL_ERROR'
+                connection_info['ssl_error'] = error_str
+        except socket.timeout:
+            connection_info['error_type'] = 'TIMEOUT'
+            connection_info['error'] = "TLS handshake timeout"
+        except Exception as e:
+            connection_info['error_type'] = 'TLS_ERROR'
+            connection_info['error'] = f"TLS connection error: {str(e)}"
+    
     except socket.timeout:
-        connection_info['error'] = "Connection timeout"
+        connection_info['error_type'] = 'CONNECTION_TIMEOUT'
+        connection_info['error'] = f"Connection timeout to {host}:{port}"
+    except ConnectionRefusedError:
+        connection_info['error_type'] = 'CONNECTION_REFUSED'
+        connection_info['error'] = f"Connection refused to {host}:{port} - service may be down"
+    except socket.gaierror as e:
+        connection_info['error_type'] = 'DNS_ERROR'
+        connection_info['error'] = f"Cannot resolve hostname '{host}': {str(e)}"
     except Exception as e:
-        connection_info['error'] = str(e)
+        connection_info['error_type'] = 'CONNECTION_ERROR'
+        connection_info['error'] = f"Connection error to {host}:{port}: {str(e)}"
+    finally:
+        if plain_sock and not connection_info.get('connected'):
+            try:
+                plain_sock.close()
+            except:
+                pass
     
     return certificates, connection_info
 
 
 def analyze_certificate(cert_der):
     """Analyze a certificate for security issues"""
+    cert_info = {}
+    
     try:
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
-        
-        cert_info = {
-            'subject': cert.subject.rfc4514_string(),
-            'issuer': cert.issuer.rfc4514_string(),
-            'version': cert.version.name,
-            'serial_number': str(cert.serial_number),
-            'not_valid_before': cert.not_valid_before_utc.isoformat(),
-            'not_valid_after': cert.not_valid_after_utc.isoformat(),
-            'signature_algorithm': cert.signature_algorithm_oid._name,
-            'is_self_signed': cert.issuer == cert.subject
-        }
-        
-        # Extract key information
+    except Exception as e:
+        return {'error': f"Failed to load certificate: {str(e)}", 'error_type': 'PARSE_ERROR'}
+    
+    # Extract basic fields with individual error handling
+    try:
+        cert_info['subject'] = cert.subject.rfc4514_string()
+    except Exception as e:
+        cert_info['subject'] = f"<error: {str(e)}>"
+    
+    try:
+        cert_info['issuer'] = cert.issuer.rfc4514_string()
+    except Exception as e:
+        cert_info['issuer'] = f"<error: {str(e)}>"
+    
+    try:
+        cert_info['version'] = cert.version.name
+    except Exception:
+        cert_info['version'] = 'unknown'
+    
+    try:
+        cert_info['serial_number'] = str(cert.serial_number)
+    except Exception:
+        cert_info['serial_number'] = 'unknown'
+    
+    # Handle date fields carefully - some certs have weird date encodings
+    try:
+        cert_info['not_valid_before'] = cert.not_valid_before_utc.isoformat()
+    except AttributeError:
+        # Older cryptography versions don't have not_valid_before_utc
+        try:
+            cert_info['not_valid_before'] = cert.not_valid_before.replace(tzinfo=timezone.utc).isoformat()
+        except Exception as e:
+            cert_info['not_valid_before'] = f"<error: {str(e)}>"
+    
+    try:
+        cert_info['not_valid_after'] = cert.not_valid_after_utc.isoformat()
+    except AttributeError:
+        # Older cryptography versions don't have not_valid_after_utc
+        try:
+            cert_info['not_valid_after'] = cert.not_valid_after.replace(tzinfo=timezone.utc).isoformat()
+        except Exception as e:
+            cert_info['not_valid_after'] = f"<error: {str(e)}>"
+    
+    # Signature algorithm - handle missing or weird algorithms
+    try:
+        if hasattr(cert.signature_algorithm_oid, '_name'):
+            cert_info['signature_algorithm'] = cert.signature_algorithm_oid._name
+        else:
+            cert_info['signature_algorithm'] = str(cert.signature_algorithm_oid)
+    except Exception as e:
+        cert_info['signature_algorithm'] = f"<error: {str(e)}>"
+    
+    # Self-signed check
+    try:
+        cert_info['is_self_signed'] = cert.issuer == cert.subject
+    except Exception:
+        cert_info['is_self_signed'] = None
+    
+    # Extract key information with proper error handling
+    try:
         public_key = cert.public_key()
         if isinstance(public_key, rsa.RSAPublicKey):
             cert_info['key_type'] = 'RSA'
@@ -172,74 +261,125 @@ def analyze_certificate(cert_der):
             cert_info['key_size'] = public_key.key_size
         elif isinstance(public_key, ec.EllipticCurvePublicKey):
             cert_info['key_type'] = 'EC'
-            cert_info['key_size'] = public_key.curve.key_size
+            try:
+                cert_info['key_size'] = public_key.curve.key_size
+            except AttributeError:
+                # Some EC curves don't have key_size
+                cert_info['key_size'] = None
+                cert_info['curve_name'] = public_key.curve.name
         else:
-            cert_info['key_type'] = 'Unknown'
+            cert_info['key_type'] = type(public_key).__name__
             cert_info['key_size'] = None
-        
-        # Extract SANs
-        try:
-            san_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
-            sans = []
-            for san in san_ext.value:
+    except Exception as e:
+        cert_info['key_type'] = f"<error: {str(e)}>"
+        cert_info['key_size'] = None
+    
+    # Extract SANs - handle various SAN types
+    try:
+        san_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        sans = []
+        for san in san_ext.value:
+            try:
                 if isinstance(san, x509.DNSName):
                     sans.append(f"DNS:{san.value}")
                 elif isinstance(san, x509.IPAddress):
                     sans.append(f"IP:{san.value}")
-            cert_info['subject_alternative_names'] = sans
-        except x509.ExtensionNotFound:
-            cert_info['subject_alternative_names'] = []
-        
-        # Extract common name from subject
-        try:
-            for attribute in cert.subject:
-                if attribute.oid == x509.oid.NameOID.COMMON_NAME:
-                    cert_info['common_name'] = attribute.value
-                    break
-        except:
-            cert_info['common_name'] = None
-        
-        # Extract key usage extensions
-        try:
-            key_usage_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.KEY_USAGE)
-            key_usage = key_usage_ext.value
-            cert_info['key_usage'] = {
-                'digital_signature': key_usage.digital_signature if hasattr(key_usage, 'digital_signature') else False,
-                'key_encipherment': key_usage.key_encipherment if hasattr(key_usage, 'key_encipherment') else False,
-                'key_agreement': key_usage.key_agreement if hasattr(key_usage, 'key_agreement') else False,
-                'critical': key_usage_ext.critical
-            }
-        except x509.ExtensionNotFound:
-            cert_info['key_usage'] = None
-        
-        # Extract extended key usage
-        try:
-            ext_key_usage_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.EXTENDED_KEY_USAGE)
-            ext_usages = []
-            for usage in ext_key_usage_ext.value:
-                ext_usages.append(usage._name)
-            cert_info['extended_key_usage'] = ext_usages
-        except x509.ExtensionNotFound:
-            cert_info['extended_key_usage'] = []
-        
-        # Calculate fingerprints
-        cert_info['fingerprints'] = {
-            'sha256': cert.fingerprint(hashes.SHA256()).hex(':'),
-            'sha1': cert.fingerprint(hashes.SHA1()).hex(':')
-        }
-        
-        return cert_info
-        
+                elif isinstance(san, x509.RFC822Name):
+                    sans.append(f"Email:{san.value}")
+                elif isinstance(san, x509.UniformResourceIdentifier):
+                    sans.append(f"URI:{san.value}")
+                else:
+                    # Handle other SAN types generically
+                    sans.append(f"{type(san).__name__}:{str(san)}")
+            except Exception:
+                # Skip problematic SANs
+                continue
+        cert_info['subject_alternative_names'] = sans
+    except x509.ExtensionNotFound:
+        cert_info['subject_alternative_names'] = []
     except Exception as e:
-        return {'error': f"Failed to parse certificate: {str(e)}"}
+        cert_info['subject_alternative_names'] = [f"<error: {str(e)}>"]
+    
+    # Extract common name from subject - handle malformed subjects
+    cert_info['common_name'] = None
+    try:
+        for attribute in cert.subject:
+            if attribute.oid == x509.oid.NameOID.COMMON_NAME:
+                cert_info['common_name'] = attribute.value
+                break
+    except Exception:
+        # If we can't iterate through subject, try to extract from string representation
+        try:
+            subject_str = str(cert.subject)
+            if 'CN=' in subject_str:
+                cn_start = subject_str.find('CN=') + 3
+                cn_end = subject_str.find(',', cn_start)
+                if cn_end == -1:
+                    cn_end = subject_str.find('>', cn_start)
+                if cn_end != -1:
+                    cert_info['common_name'] = subject_str[cn_start:cn_end].strip()
+        except:
+            pass
+    
+    # Extract key usage extensions with safe defaults
+    try:
+        key_usage_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.KEY_USAGE)
+        key_usage = key_usage_ext.value
+        cert_info['key_usage'] = {
+            'digital_signature': getattr(key_usage, 'digital_signature', False),
+            'key_encipherment': getattr(key_usage, 'key_encipherment', False),
+            'key_agreement': getattr(key_usage, 'key_agreement', False),
+            'key_cert_sign': getattr(key_usage, 'key_cert_sign', False),
+            'crl_sign': getattr(key_usage, 'crl_sign', False),
+            'critical': key_usage_ext.critical
+        }
+    except x509.ExtensionNotFound:
+        cert_info['key_usage'] = None
+    except Exception as e:
+        cert_info['key_usage'] = {'error': str(e)}
+    
+    # Extract extended key usage
+    try:
+        ext_key_usage_ext = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.EXTENDED_KEY_USAGE)
+        ext_usages = []
+        for usage in ext_key_usage_ext.value:
+            try:
+                if hasattr(usage, '_name'):
+                    ext_usages.append(usage._name)
+                else:
+                    ext_usages.append(str(usage))
+            except:
+                ext_usages.append('unknown')
+        cert_info['extended_key_usage'] = ext_usages
+    except x509.ExtensionNotFound:
+        cert_info['extended_key_usage'] = []
+    except Exception as e:
+        cert_info['extended_key_usage'] = [f"<error: {str(e)}>"]
+    
+    # Calculate fingerprints - these should rarely fail
+    try:
+        cert_info['fingerprints'] = {}
+        try:
+            cert_info['fingerprints']['sha256'] = cert.fingerprint(hashes.SHA256()).hex(':')
+        except Exception as e:
+            cert_info['fingerprints']['sha256'] = f"<error: {str(e)}>"
+        
+        try:
+            cert_info['fingerprints']['sha1'] = cert.fingerprint(hashes.SHA1()).hex(':')
+        except Exception as e:
+            cert_info['fingerprints']['sha1'] = f"<error: {str(e)}>"
+    except Exception:
+        cert_info['fingerprints'] = {'error': 'Failed to calculate fingerprints'}
+    
+    return cert_info
 
 
 def check_certificate_security(cert_info, connection_info):
     """Check certificate for security issues and generate warnings"""
     warnings = []
     
-    # Check if certificate could be parsed
-    if 'error' in cert_info:
+    # Check if certificate could be parsed at all
+    if 'error' in cert_info and 'error_type' in cert_info and cert_info['error_type'] == 'PARSE_ERROR':
         warnings.append({
             'level': 'CRITICAL',
             'category': 'CERTIFICATE_PARSE_ERROR',
@@ -248,42 +388,53 @@ def check_certificate_security(cert_info, connection_info):
         })
         return warnings
     
-    # Check certificate expiry
-    try:
-        not_after = datetime.fromisoformat(cert_info['not_valid_after'].replace('Z', '+00:00'))
-        not_before = datetime.fromisoformat(cert_info['not_valid_before'].replace('Z', '+00:00'))
-        now = datetime.now(timezone.utc)
-        
-        if now > not_after:
-            warnings.append({
-                'level': 'CRITICAL',
-                'category': 'CERTIFICATE_EXPIRED',
-                'message': f"Certificate expired on {cert_info['not_valid_after']}",
-                'recommendation': 'Replace with a valid certificate immediately'
-            })
-        elif now < not_before:
-            warnings.append({
-                'level': 'CRITICAL',
-                'category': 'CERTIFICATE_NOT_YET_VALID',
-                'message': f"Certificate not valid until {cert_info['not_valid_before']}",
-                'recommendation': 'Check system time or replace with a valid certificate'
-            })
-        else:
-            days_until_expiry = (not_after - now).days
-            if days_until_expiry < CERT_EXPIRY_WARNING_DAYS:
-                warnings.append({
-                    'level': 'HIGH',
-                    'category': 'CERTIFICATE_EXPIRING_SOON',
-                    'message': f"Certificate expires in {days_until_expiry} days",
-                    'recommendation': 'Plan certificate renewal to avoid service disruption'
-                })
-    except Exception as e:
+    # Check certificate expiry - handle error values gracefully
+    not_after_str = cert_info.get('not_valid_after', '')
+    not_before_str = cert_info.get('not_valid_before', '')
+    
+    if not_after_str.startswith('<error:') or not_before_str.startswith('<error:'):
         warnings.append({
             'level': 'MEDIUM',
-            'category': 'CERTIFICATE_DATE_CHECK_ERROR',
-            'message': f"Could not verify certificate dates: {str(e)}",
-            'recommendation': 'Manually verify certificate validity dates'
+            'category': 'CERTIFICATE_DATE_ERROR',
+            'message': 'Certificate contains invalid or unparseable date fields',
+            'recommendation': 'Certificate may be malformed - verify with openssl or other tools'
         })
+    else:
+        try:
+            not_after = datetime.fromisoformat(not_after_str.replace('Z', '+00:00'))
+            not_before = datetime.fromisoformat(not_before_str.replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            
+            if now > not_after:
+                warnings.append({
+                    'level': 'CRITICAL',
+                    'category': 'CERTIFICATE_EXPIRED',
+                    'message': f"Certificate expired on {not_after_str}",
+                    'recommendation': 'Replace with a valid certificate immediately'
+                })
+            elif now < not_before:
+                warnings.append({
+                    'level': 'CRITICAL',
+                    'category': 'CERTIFICATE_NOT_YET_VALID',
+                    'message': f"Certificate not valid until {not_before_str}",
+                    'recommendation': 'Check system time or replace with a valid certificate'
+                })
+            else:
+                days_until_expiry = (not_after - now).days
+                if days_until_expiry < CERT_EXPIRY_WARNING_DAYS:
+                    warnings.append({
+                        'level': 'HIGH',
+                        'category': 'CERTIFICATE_EXPIRING_SOON',
+                        'message': f"Certificate expires in {days_until_expiry} days",
+                        'recommendation': 'Plan certificate renewal to avoid service disruption'
+                    })
+        except Exception as e:
+            warnings.append({
+                'level': 'MEDIUM',
+                'category': 'CERTIFICATE_DATE_CHECK_ERROR',
+                'message': f"Could not verify certificate dates: {str(e)}",
+                'recommendation': 'Manually verify certificate validity dates'
+            })
     
     # Check self-signed certificates
     if cert_info.get('is_self_signed', False):
@@ -464,12 +615,53 @@ def checkTLSSecurity(session):
         result['connection'] = connection_info
         
         if not connection_info.get('connected', False):
-            result['warnings'].append({
-                'level': 'CRITICAL',
-                'category': 'CONNECTION_FAILED',
-                'message': f"Failed to establish TLS connection: {connection_info.get('error', 'Unknown error')}",
-                'recommendation': 'Verify network connectivity and TLS configuration'
-            })
+            # Generate specific warnings based on error type
+            error_type = connection_info.get('error_type', 'UNKNOWN')
+            error_msg = connection_info.get('error', connection_info.get('ssl_error', 'Unknown error'))
+            
+            if error_type == 'CONNECTION_REFUSED':
+                result['warnings'].append({
+                    'level': 'CRITICAL',
+                    'category': 'CONNECTION_REFUSED',
+                    'message': error_msg,
+                    'recommendation': 'Verify that Cassandra is running on the specified host and port'
+                })
+            elif error_type == 'CONNECTION_TIMEOUT':
+                result['warnings'].append({
+                    'level': 'CRITICAL',
+                    'category': 'CONNECTION_TIMEOUT',
+                    'message': error_msg,
+                    'recommendation': 'Check network connectivity, firewall rules, and verify the host is reachable'
+                })
+            elif error_type == 'DNS_ERROR':
+                result['warnings'].append({
+                    'level': 'CRITICAL',
+                    'category': 'DNS_RESOLUTION_FAILED',
+                    'message': error_msg,
+                    'recommendation': 'Verify the hostname is correct and DNS is properly configured'
+                })
+            elif error_type == 'NO_TLS':
+                result['warnings'].append({
+                    'level': 'CRITICAL',
+                    'category': 'TLS_NOT_ENABLED',
+                    'message': error_msg,
+                    'recommendation': 'The service is not using TLS/SSL. Enable TLS in Cassandra configuration'
+                })
+            elif error_type == 'SSL_ERROR':
+                result['warnings'].append({
+                    'level': 'CRITICAL',
+                    'category': 'TLS_HANDSHAKE_FAILED',
+                    'message': f"TLS/SSL handshake failed: {connection_info.get('ssl_error', error_msg)}",
+                    'recommendation': 'Check TLS configuration, certificate validity, and supported protocols'
+                })
+            else:
+                # Generic connection error
+                result['warnings'].append({
+                    'level': 'CRITICAL',
+                    'category': 'CONNECTION_ERROR',
+                    'message': error_msg,
+                    'recommendation': 'Verify connection parameters and TLS configuration'
+                })
         else:
             # Analyze each certificate in the chain
             for i, cert_der in enumerate(certificates):
