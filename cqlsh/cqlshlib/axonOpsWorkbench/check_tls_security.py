@@ -123,23 +123,25 @@ def get_certificate_chain(host, port, timeout=10):
     try:
         plain_sock = socket.create_connection((host, port), timeout=timeout)
         # Port is open, now try TLS
+        # Note: wrap_socket takes ownership of the socket, but we need to ensure cleanup
+        wrapped_sock = None
         try:
-            with context.wrap_socket(plain_sock, server_hostname=host) as ssock:
-                # Get connection info
-                connection_info['connected'] = True
-                connection_info['tls_version'] = ssock.version()
-                connection_info['cipher_suite'] = ssock.cipher()[0] if ssock.cipher() else None
-                connection_info['cipher_bits'] = ssock.cipher()[2] if ssock.cipher() and len(ssock.cipher()) > 2 else None
-                
-                # Get peer certificate (end entity)
-                der_cert = ssock.getpeercert_bin()
-                if der_cert:
-                    certificates.append(der_cert)
-                
-                # Note: Python's ssl module doesn't provide easy access to the full chain
-                # We only get the peer certificate, not intermediates
-                # This is a limitation but sufficient for most security checks
-                
+            wrapped_sock = context.wrap_socket(plain_sock, server_hostname=host)
+            # Get connection info
+            connection_info['connected'] = True
+            connection_info['tls_version'] = wrapped_sock.version()
+            connection_info['cipher_suite'] = wrapped_sock.cipher()[0] if wrapped_sock.cipher() else None
+            connection_info['cipher_bits'] = wrapped_sock.cipher()[2] if wrapped_sock.cipher() and len(wrapped_sock.cipher()) > 2 else None
+            
+            # Get peer certificate (end entity)
+            der_cert = wrapped_sock.getpeercert_bin()
+            if der_cert:
+                certificates.append(der_cert)
+            
+            # Note: Python's ssl module doesn't provide easy access to the full chain
+            # We only get the peer certificate, not intermediates
+            # This is a limitation but sufficient for most security checks
+            
         except ssl.SSLError as e:
             error_str = str(e)
             # Common SSL errors that indicate non-TLS service
@@ -159,10 +161,18 @@ def get_certificate_chain(host, port, timeout=10):
                 connection_info['ssl_error'] = error_str
         except socket.timeout:
             connection_info['error_type'] = 'TIMEOUT'
-            connection_info['error'] = "TLS handshake timeout"
+            connection_info['error'] = f"TLS handshake timeout with {host}:{port}"
         except Exception as e:
             connection_info['error_type'] = 'TLS_ERROR'
-            connection_info['error'] = f"TLS connection error: {str(e)}"
+            connection_info['error'] = f"TLS connection error to {host}:{port}: {str(e)}"
+        finally:
+            # Always close the wrapped socket if it was created
+            if wrapped_sock:
+                try:
+                    wrapped_sock.close()
+                except:
+                    pass
+            # plain_sock is closed by wrap_socket or wrapped_sock.close()
     
     except socket.timeout:
         connection_info['error_type'] = 'CONNECTION_TIMEOUT'
@@ -177,6 +187,7 @@ def get_certificate_chain(host, port, timeout=10):
         connection_info['error_type'] = 'CONNECTION_ERROR'
         connection_info['error'] = f"Connection error to {host}:{port}: {str(e)}"
     finally:
+        # Only close plain_sock if it wasn't wrapped (i.e., connection failed before TLS)
         if plain_sock and not connection_info.get('connected'):
             try:
                 plain_sock.close()
@@ -617,7 +628,7 @@ def checkTLSSecurity(session):
         if not connection_info.get('connected', False):
             # Generate specific warnings based on error type
             error_type = connection_info.get('error_type', 'UNKNOWN')
-            error_msg = connection_info.get('error', connection_info.get('ssl_error', 'Unknown error'))
+            error_msg = connection_info.get('error', connection_info.get('ssl_error', f'Unknown error connecting to {host}:{port}'))
             
             if error_type == 'CONNECTION_REFUSED':
                 result['warnings'].append({
