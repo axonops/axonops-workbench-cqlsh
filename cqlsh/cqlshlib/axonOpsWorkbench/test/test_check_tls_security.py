@@ -429,6 +429,11 @@ class TestCheckTLSecurity(unittest.TestCase):
         self.assertEqual(result['status'], 'error')
         self.assertIn('error', result)
         self.assertIn('Test exception', result['error'])
+        
+        # Verify ANALYSIS_ERROR warning was generated
+        analysis_warnings = [w for w in result['warnings'] if w['category'] == 'ANALYSIS_ERROR']
+        self.assertEqual(len(analysis_warnings), 1)
+        self.assertIn('Failed to analyze TLS security', analysis_warnings[0]['message'])
     
     def test_analyze_certificate_enhanced_fields(self):
         """Test that analyze_certificate returns all enhanced fields"""
