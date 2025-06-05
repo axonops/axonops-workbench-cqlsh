@@ -56,6 +56,39 @@ class TestCheckTLSecurity(unittest.TestCase):
         """Set up test fixtures"""
         self.test_host = 'test.cassandra.local'
         self.test_port = 9042
+    
+    def _parse_vulnerability_string(self, vuln_string, separator='; '):
+        """Helper to parse aggregated vulnerability strings into components"""
+        if not vuln_string:
+            return []
+        return vuln_string.split(separator)
+    
+    def _assert_vulnerability_structure(self, data, field_name, expected_count=None, expected_messages=None):
+        """Helper to assert vulnerability structure without depending on exact formatting"""
+        # Check vulnerability flag
+        self.assertTrue(data.get(f'{field_name}_vulnerable'))
+        
+        # Check vulnerability message exists
+        vuln_key = f'{field_name}_vulnerability'
+        self.assertIn(vuln_key, data)
+        
+        # Check count if multiple vulnerabilities expected
+        count_key = f'{field_name}_vulnerability_count'
+        if expected_count and expected_count > 1:
+            self.assertEqual(data.get(count_key), expected_count)
+        elif expected_count == 1:
+            self.assertNotIn(count_key, data)
+        
+        # Check messages if provided
+        if expected_messages:
+            vuln_parts = self._parse_vulnerability_string(data[vuln_key])
+            if expected_count and expected_count > 1:
+                self.assertEqual(len(vuln_parts), expected_count)
+                # Check messages are present (order-independent)
+                self.assertEqual(set(vuln_parts), set(expected_messages))
+            else:
+                # Single message case
+                self.assertEqual(data[vuln_key], expected_messages[0])
         
     def tearDown(self):
         """Clean up any temporary files"""
@@ -737,18 +770,31 @@ class TestCheckTLSecurity(unittest.TestCase):
         # Add vulnerability indicators
         enhanced_info = _add_vulnerability_indicators(cert_info, warnings)
         
-        # Check that multiple date-related vulnerabilities are aggregated
-        self.assertTrue(enhanced_info['not_valid_after_vulnerable'])
-        self.assertIn('Certificate expired', enhanced_info['not_valid_after_vulnerability'])
-        self.assertIn('invalid or unparseable date fields', enhanced_info['not_valid_after_vulnerability'])
-        self.assertEqual(enhanced_info['not_valid_after_vulnerability_count'], 2)
+        # Test multiple vulnerabilities using helper
+        self._assert_vulnerability_structure(
+            enhanced_info, 
+            'not_valid_after',
+            expected_count=2,
+            expected_messages=[
+                'Certificate expired on 2024-01-01T00:00:00',
+                'Certificate contains invalid or unparseable date fields'
+            ]
+        )
         
-        # Check single vulnerabilities don't have count field
-        self.assertTrue(enhanced_info['signature_algorithm_vulnerable'])
-        self.assertNotIn('signature_algorithm_vulnerability_count', enhanced_info)
+        # Test single vulnerabilities using helper
+        self._assert_vulnerability_structure(
+            enhanced_info,
+            'signature_algorithm',
+            expected_count=1,
+            expected_messages=['Certificate uses MD5 signature algorithm which is cryptographically broken']
+        )
         
-        self.assertTrue(enhanced_info['key_size_vulnerable'])
-        self.assertNotIn('key_size_vulnerability_count', enhanced_info)
+        self._assert_vulnerability_structure(
+            enhanced_info,
+            'key_size',
+            expected_count=1,
+            expected_messages=['RSA key size 1024 bits is below recommended minimum of 2048 bits']
+        )
     
     @patch('axonOpsWorkbench.check_tls_security.get_certificate_chain')
     @patch('axonOpsWorkbench.check_tls_security.extract_connection_info')
@@ -774,16 +820,81 @@ class TestCheckTLSecurity(unittest.TestCase):
         
         result = checkTLSSecurity(Mock())
         
-        # Should have both weak cipher and no PFS vulnerabilities
+        # Test structure for cipher suite vulnerabilities
         self.assertTrue(result['connection']['cipher_suite_vulnerable'])
-        vuln = result['connection']['cipher_suite_vulnerability']
+        self.assertIn('cipher_suite_vulnerability', result['connection'])
         
-        # Check that both vulnerabilities are present
-        self.assertTrue('weak encryption' in vuln or 'Perfect Forward Secrecy' in vuln)
-        # If both apply, they should be joined
-        if 'weak encryption' in vuln and 'Perfect Forward Secrecy' in vuln:
-            self.assertIn(';', vuln)
+        # DES-CBC-SHA should trigger both weak cipher and no PFS warnings
+        # Verify structure without depending on exact text
+        warnings = result['warnings']
+        cipher_warnings = [w for w in warnings if w['category'] in ['WEAK_CIPHER_SUITE', 'NO_PERFECT_FORWARD_SECRECY']]
+        
+        # Should have exactly 2 cipher-related warnings
+        self.assertEqual(len(cipher_warnings), 2)
+        
+        # Check categories are both present
+        warning_categories = {w['category'] for w in cipher_warnings}
+        expected_categories = {'WEAK_CIPHER_SUITE', 'NO_PERFECT_FORWARD_SECRECY'}
+        self.assertEqual(warning_categories, expected_categories)
+        
+        # Verify aggregation structure
+        if 'cipher_suite_vulnerability_count' in result['connection']:
+            # Multiple vulnerabilities case
             self.assertEqual(result['connection']['cipher_suite_vulnerability_count'], 2)
+            vuln_string = result['connection']['cipher_suite_vulnerability']
+            vuln_parts = vuln_string.split('; ')
+            self.assertEqual(len(vuln_parts), 2)
+
+    def test_structured_vulnerability_data_usage(self):
+        """Demonstrate how to work with vulnerability data in a structured way"""
+        # Create a certificate with multiple issues
+        cert_info = {
+            'not_valid_after': '2024-01-01T00:00:00',
+            'key_size': 1024,
+            'key_type': 'RSA'
+        }
+        
+        warnings = [
+            {'category': 'CERTIFICATE_EXPIRED', 'message': 'Certificate expired on 2024-01-01T00:00:00'},
+            {'category': 'CERTIFICATE_DATE_ERROR', 'message': 'Certificate contains invalid date fields'},
+            {'category': 'WEAK_KEY_SIZE', 'message': 'RSA key size 1024 bits is below minimum'}
+        ]
+        
+        enhanced_info = _add_vulnerability_indicators(cert_info, warnings)
+        
+        # Extract vulnerability data in a structured way
+        vulnerability_report = self._extract_vulnerability_report(enhanced_info)
+        
+        # Verify structure
+        self.assertIn('not_valid_after', vulnerability_report)
+        self.assertEqual(vulnerability_report['not_valid_after']['count'], 2)
+        self.assertEqual(len(vulnerability_report['not_valid_after']['messages']), 2)
+        
+        self.assertIn('key_size', vulnerability_report)
+        self.assertEqual(vulnerability_report['key_size']['count'], 1)
+        self.assertEqual(len(vulnerability_report['key_size']['messages']), 1)
+    
+    def _extract_vulnerability_report(self, data):
+        """Extract vulnerabilities into a structured format for easier testing/processing"""
+        report = {}
+        
+        # Find all vulnerability fields
+        for key in data:
+            if key.endswith('_vulnerable') and data[key]:
+                field_name = key[:-11]  # Remove '_vulnerable' suffix
+                vuln_key = f'{field_name}_vulnerability'
+                count_key = f'{field_name}_vulnerability_count'
+                
+                if vuln_key in data:
+                    messages = self._parse_vulnerability_string(data[vuln_key])
+                    report[field_name] = {
+                        'vulnerable': True,
+                        'count': data.get(count_key, 1),
+                        'messages': messages if isinstance(messages, list) else [messages],
+                        'raw_string': data[vuln_key]
+                    }
+        
+        return report
 
 if __name__ == '__main__':
     unittest.main()
