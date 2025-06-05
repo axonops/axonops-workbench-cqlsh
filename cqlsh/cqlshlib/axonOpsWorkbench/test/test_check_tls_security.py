@@ -700,5 +700,85 @@ class TestCheckTLSecurity(unittest.TestCase):
         self.assertEqual(len(dns_warnings), 1)
         self.assertIn('Cannot resolve hostname', dns_warnings[0]['message'])
 
+    def test_multiple_vulnerabilities_aggregation(self):
+        """Test that multiple vulnerabilities for the same field are aggregated"""
+        # Create warnings with multiple issues for the same field
+        cert_info = {
+            'not_valid_after': '2024-01-01T00:00:00',
+            'signature_algorithm': 'md5WithRSAEncryption',
+            'key_size': 1024,
+            'key_type': 'RSA'
+        }
+        
+        warnings = [
+            {
+                'category': 'CERTIFICATE_EXPIRED',
+                'message': 'Certificate expired on 2024-01-01T00:00:00'
+            },
+            {
+                'category': 'CERTIFICATE_DATE_ERROR',
+                'message': 'Certificate contains invalid or unparseable date fields'
+            },
+            {
+                'category': 'WEAK_SIGNATURE_ALGORITHM',
+                'message': 'Certificate uses MD5 signature algorithm which is cryptographically broken'
+            },
+            {
+                'category': 'WEAK_KEY_SIZE',
+                'message': 'RSA key size 1024 bits is below recommended minimum of 2048 bits'
+            }
+        ]
+        
+        # Add vulnerability indicators
+        enhanced_info = _add_vulnerability_indicators(cert_info, warnings)
+        
+        # Check that multiple date-related vulnerabilities are aggregated
+        self.assertTrue(enhanced_info['not_valid_after_vulnerable'])
+        self.assertIn('Certificate expired', enhanced_info['not_valid_after_vulnerability'])
+        self.assertIn('invalid or unparseable date fields', enhanced_info['not_valid_after_vulnerability'])
+        self.assertEqual(enhanced_info['not_valid_after_vulnerability_count'], 2)
+        
+        # Check single vulnerabilities don't have count field
+        self.assertTrue(enhanced_info['signature_algorithm_vulnerable'])
+        self.assertNotIn('signature_algorithm_vulnerability_count', enhanced_info)
+        
+        self.assertTrue(enhanced_info['key_size_vulnerable'])
+        self.assertNotIn('key_size_vulnerability_count', enhanced_info)
+    
+    @patch('axonOpsWorkbench.check_tls_security.get_certificate_chain')
+    @patch('axonOpsWorkbench.check_tls_security.extract_connection_info')
+    def test_connection_multiple_vulnerabilities(self, mock_extract, mock_get_cert):
+        """Test that multiple connection vulnerabilities are aggregated"""
+        mock_extract.return_value = ('localhost', 9042)
+        
+        # Create test certificate
+        cert_der = self._create_test_certificate()
+        
+        # Mock connection with both weak cipher and no PFS
+        mock_get_cert.return_value = (
+            [cert_der],
+            {
+                'host': 'localhost',
+                'port': 9042,
+                'connected': True,
+                'tls_version': 'TLSv1.2',
+                'cipher_suite': 'DES-CBC-SHA',  # Weak cipher without PFS
+                'cipher_bits': 56
+            }
+        )
+        
+        result = checkTLSSecurity(Mock())
+        
+        # Should have both weak cipher and no PFS vulnerabilities
+        self.assertTrue(result['connection']['cipher_suite_vulnerable'])
+        vuln = result['connection']['cipher_suite_vulnerability']
+        
+        # Check that both vulnerabilities are present
+        self.assertTrue('weak encryption' in vuln or 'Perfect Forward Secrecy' in vuln)
+        # If both apply, they should be joined
+        if 'weak encryption' in vuln and 'Perfect Forward Secrecy' in vuln:
+            self.assertIn(';', vuln)
+            self.assertEqual(result['connection']['cipher_suite_vulnerability_count'], 2)
+
 if __name__ == '__main__':
     unittest.main()

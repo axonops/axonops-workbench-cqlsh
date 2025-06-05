@@ -576,32 +576,64 @@ def _add_vulnerability_indicators(cert_info, warnings):
     """Add vulnerability indicators to certificate fields based on warnings"""
     enhanced_cert_info = cert_info.copy()
     
-    # Add vulnerability indicators for each field
+    # Track vulnerabilities for each field as lists to support multiple issues
+    vulnerabilities = {}
+    
+    # Process each warning and aggregate by field
     for warning in warnings:
         category = warning.get('category', '')
+        message = warning['message']
         
         # Certificate expiry issues
-        if category in ['CERTIFICATE_EXPIRED', 'CERTIFICATE_EXPIRING_SOON']:
-            enhanced_cert_info['not_valid_after_vulnerable'] = True
-            enhanced_cert_info['not_valid_after_vulnerability'] = warning['message']
+        if category in ['CERTIFICATE_EXPIRED', 'CERTIFICATE_EXPIRING_SOON', 'CERTIFICATE_DATE_ERROR']:
+            field = 'not_valid_after'
+            if field not in vulnerabilities:
+                vulnerabilities[field] = []
+            vulnerabilities[field].append(message)
+        
         elif category == 'CERTIFICATE_NOT_YET_VALID':
-            enhanced_cert_info['not_valid_before_vulnerable'] = True
-            enhanced_cert_info['not_valid_before_vulnerability'] = warning['message']
+            field = 'not_valid_before'
+            if field not in vulnerabilities:
+                vulnerabilities[field] = []
+            vulnerabilities[field].append(message)
         
         # Self-signed certificate
         elif category == 'SELF_SIGNED_CERTIFICATE' and enhanced_cert_info.get('is_self_signed'):
-            enhanced_cert_info['is_self_signed_vulnerable'] = True
-            enhanced_cert_info['is_self_signed_vulnerability'] = warning['message']
+            field = 'is_self_signed'
+            if field not in vulnerabilities:
+                vulnerabilities[field] = []
+            vulnerabilities[field].append(message)
         
         # Weak key size
         elif category == 'WEAK_KEY_SIZE':
-            enhanced_cert_info['key_size_vulnerable'] = True
-            enhanced_cert_info['key_size_vulnerability'] = warning['message']
+            field = 'key_size'
+            if field not in vulnerabilities:
+                vulnerabilities[field] = []
+            vulnerabilities[field].append(message)
         
         # Weak signature algorithm
         elif category == 'WEAK_SIGNATURE_ALGORITHM':
-            enhanced_cert_info['signature_algorithm_vulnerable'] = True
-            enhanced_cert_info['signature_algorithm_vulnerability'] = warning['message']
+            field = 'signature_algorithm'
+            if field not in vulnerabilities:
+                vulnerabilities[field] = []
+            vulnerabilities[field].append(message)
+        
+        # Certificate parse errors (could affect multiple fields)
+        elif category == 'CERTIFICATE_PARSE_ERROR':
+            field = 'certificate'
+            if field not in vulnerabilities:
+                vulnerabilities[field] = []
+            vulnerabilities[field].append(message)
+    
+    # Apply aggregated vulnerabilities to the certificate info
+    for field, messages in vulnerabilities.items():
+        enhanced_cert_info[f'{field}_vulnerable'] = True
+        # If multiple vulnerabilities, join them with semicolons
+        if len(messages) == 1:
+            enhanced_cert_info[f'{field}_vulnerability'] = messages[0]
+        else:
+            enhanced_cert_info[f'{field}_vulnerability'] = '; '.join(messages)
+            enhanced_cert_info[f'{field}_vulnerability_count'] = len(messages)
     
     return enhanced_cert_info
 
@@ -702,14 +734,33 @@ def checkTLSSecurity(session):
             tls_warnings = check_tls_security(connection_info)
             result['warnings'].extend(tls_warnings)
             
-            # Add TLS version vulnerability indicator to connection info
+            # Add TLS version vulnerability indicators to connection info
+            # Aggregate multiple vulnerabilities for the same field
+            tls_vulnerabilities = []
+            cipher_vulnerabilities = []
+            
             for warning in tls_warnings:
                 if warning['category'] in ['DEPRECATED_TLS_VERSION', 'INSECURE_SSL_VERSION']:
-                    result['connection']['tls_version_vulnerable'] = True
-                    result['connection']['tls_version_vulnerability'] = warning['message']
+                    tls_vulnerabilities.append(warning['message'])
                 elif warning['category'] in ['WEAK_CIPHER_SUITE', 'NO_PERFECT_FORWARD_SECRECY']:
-                    result['connection']['cipher_suite_vulnerable'] = True
-                    result['connection']['cipher_suite_vulnerability'] = warning['message']
+                    cipher_vulnerabilities.append(warning['message'])
+            
+            # Apply aggregated vulnerabilities
+            if tls_vulnerabilities:
+                result['connection']['tls_version_vulnerable'] = True
+                if len(tls_vulnerabilities) == 1:
+                    result['connection']['tls_version_vulnerability'] = tls_vulnerabilities[0]
+                else:
+                    result['connection']['tls_version_vulnerability'] = '; '.join(tls_vulnerabilities)
+                    result['connection']['tls_version_vulnerability_count'] = len(tls_vulnerabilities)
+            
+            if cipher_vulnerabilities:
+                result['connection']['cipher_suite_vulnerable'] = True
+                if len(cipher_vulnerabilities) == 1:
+                    result['connection']['cipher_suite_vulnerability'] = cipher_vulnerabilities[0]
+                else:
+                    result['connection']['cipher_suite_vulnerability'] = '; '.join(cipher_vulnerabilities)
+                    result['connection']['cipher_suite_vulnerability_count'] = len(cipher_vulnerabilities)
             
             result['status'] = 'success'
         
