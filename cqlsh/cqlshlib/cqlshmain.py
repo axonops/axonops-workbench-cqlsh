@@ -81,6 +81,7 @@ from cqlshlib.driver import cluster_factory
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 isBasicGlobal = False
+isExitKeyWordGlobal = False
 isStartPrinted = False
 isJSONKeywordFound = False
 timestampGenerator = "NOT-SET"
@@ -523,9 +524,11 @@ class Shell(cmd.Cmd):
 
             # ---------- AxonOps Workbench
             global isStartPrinted
+            global isExitKeyWordGlobal
+
             if isStartPrinted is False:
                 isStartPrinted = True
-                if not self.isBasic:
+                if (not self.isBasic) or (self.isBasic and isExitKeyWordGlobal):
                     print("KEYWORD:CQLSH:STARTED")
             # ----------
         else:
@@ -2214,6 +2217,14 @@ class Shell(cmd.Cmd):
 
         Exits cqlsh.
         """
+
+        # ---------- AxonOps Workbench
+        global isExitKeyWordGlobal
+        
+        if isExitKeyWordGlobal is True:
+            print("KEYWORD:EXIT")
+        # ----------
+
         self.stop = True
         if self.owns_connection:
             self.conn.shutdown()
@@ -2824,6 +2835,7 @@ def main(cmdline, pkgpath):
     parser.add_argument("--ip", help="Specify the IP of the cluster")
     parser.add_argument("--test", help="Only test connection and return Cassandra version")
     parser.add_argument("--basic", help="Disable most of the customizations")
+    parser.add_argument("--exit-keyword", help="Show exit keyword regardless the value of basic argument")
     parser.add_argument("--keepTemp", help="Keep the temporary files")
     parser.add_argument("--varsManifest", help="Specify the path to variables manifest")
     parser.add_argument("--varsValues", help="Specify the path to variables values")
@@ -2857,6 +2869,7 @@ def main(cmdline, pkgpath):
     isBasic = False
     testArgument = None
     global isBasicGlobal
+    global isExitKeyWordGlobal
 
     if cfarguments.initialize is not None:
         try:
@@ -2910,6 +2923,9 @@ def main(cmdline, pkgpath):
     if cfarguments.basic is not None:
         isBasic = True
         isBasicGlobal = True
+
+    if cfarguments.exit_keyword is not None:
+        isExitKeyWordGlobal = True
 
     # Checks
     if cfarguments.port is not None:
