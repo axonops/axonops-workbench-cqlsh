@@ -404,7 +404,8 @@ class Shell(cmd.Cmd):
         else:
             self.continue_prompt = "   ... KEYWORD:STATEMENT:INCOMPLETE"
         self.keyspace_continue_prompt = "{}    ... "
-        self.use_paging = self.isBasic
+        # self.use_paging = self.isBasic
+        self.use_paging = True
         # ----------
 
         if isinstance(auth_provider, PlainTextAuthProvider):
@@ -1303,7 +1304,12 @@ class Shell(cmd.Cmd):
                 if result.has_more_pages:
                     if self.shunted_query_out is None and tty:
                         # Only pause when not capturing.
-                        input("---MORE---")
+                        # ---------- AxonOps Workbench
+                        if not self.isBasic:
+                            input("KEYWORD:PAGING:CONTINUE")
+                        else:
+                            input(f"---MORE---")
+                        # ----------
                     result.fetch_next_page()
                 else:
                     if not tty:
@@ -1354,7 +1360,8 @@ class Shell(cmd.Cmd):
                 print("KEYWORD:JSON:STARTED")
                 all_rows = [
                     {c: self.myformat_value(row[c], cql_type) for c, cql_type in zip(column_names, cql_types)}
-                    for row in result.all()
+                    # for row in result.all()
+                    for row in result.current_rows
                 ]
 
                 for row in all_rows:
@@ -2325,11 +2332,6 @@ class Shell(cmd.Cmd):
         """
 
     def do_paging(self, parsed):
-        # ---------- AxonOps Workbench
-        if not self.isBasic:
-            print("[OUTPUT:INFO]The query pagin option does not affect the interactive terminal.")
-            return
-        # ----------
         """
         PAGING [cqlsh]
 
