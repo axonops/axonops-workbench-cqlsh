@@ -87,7 +87,7 @@ isJSONKeywordFound = False
 timestampGenerator = "NOT-SET"
 
 # The current release version of the binaries
-CUSTOM_VERSION = '0.17.1'
+CUSTOM_VERSION = '0.17.2'
 
 # Hold the original `sys.exit` function
 original_exit = sys.exit
