@@ -67,6 +67,11 @@ jobs:
         with:
           python-version: 3.12
 
+      - name: Start ClamAV daemon clamd
+        if: ${{ matrix.target == 'Windows' }}
+        uses: toblux/start-clamd-github-action@v0.2.1
+
+
       # statix won't install in Windows nor we need it
       - name: Install dependencies
         run: |
@@ -119,7 +124,7 @@ jobs:
         with:
           directories: .
           options: -ri
-
+                    
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
@@ -128,6 +133,26 @@ jobs:
             dist/keys_generator*tar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  security_scan:
+    name: Security Scanning
+    runs-on: ubuntu-22.04
+    needs: [build]
+    if: ${{ !cancelled() && success() && !contains(github.ref, 'internal') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cqlsh-MINGW64_NT-10.0-20348-x86_64.tar
+          path: ./
+
+      - name: Malware Scanner
+        uses: dell/common-github-actions/malware-scanner@main
+        with:
+          directories: ./
+          options: -ri
 
   generate-sbom:
     runs-on: ubuntu-latest
