@@ -113,6 +113,12 @@ jobs:
             (cd dist && tar cpf $(basename $target).tar $target)
           done
 
+      - name: Malware Scanner
+        uses: dell/common-github-actions/malware-scanner@main
+        with:
+          directories: .
+          options: -ri
+
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
