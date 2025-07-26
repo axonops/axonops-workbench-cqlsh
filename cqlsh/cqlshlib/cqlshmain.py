@@ -86,6 +86,7 @@ isSCBIncluded = False
 isStartPrinted = False
 isJSONKeywordFound = False
 timestampGenerator = "NOT-SET"
+currentStatementIdentifier = None
 
 # The current release version of the binaries
 CUSTOM_VERSION = '0.17.3'
@@ -1090,6 +1091,10 @@ class Shell(cmd.Cmd):
 
                 finalOutput = f"KEYWORD:STATEMENTS:IDENTIFIERS:[{','.join(identifiers)}]"
 
+                global currentStatementIdentifier
+
+                currentStatementIdentifier = statements[0]
+
                 if len(stNextidentifier) > 0:
                     finalOutput = f"{finalOutput}[{stNextidentifier}]"
                     isJSONKeywordFound = f"{stNextidentifier}".lower() == "json"
@@ -1359,6 +1364,7 @@ class Shell(cmd.Cmd):
         if not self.isBasic and not isJSONKeywordFound:
             try:
                 print("KEYWORD:JSON:STARTED")
+                print(f"KEYWORD:TABLEMETA:INFO:[{table_meta.keyspace_name}.{table_meta.name}]")
                 all_rows = [
                     {c: self.myformat_value(row[c], cql_type) for c, cql_type in zip(column_names, cql_types)}
                     # for row in result.all()
