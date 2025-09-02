@@ -196,8 +196,28 @@ def __getKeyspaceViews(keyspace_views):
 
 def printMetadata(session):
     final_metadata = {}
+
+    hosts = []
+    
+    for host in session.cluster.metadata.all_hosts():
+        try:
+            host_info = {
+            "datacenter": str(host.datacenter),
+            "rack": str(host.rack),
+            "address": str(host.address),
+            "is_up": host.is_up,
+            "dse_version": getattr(host, "dse_version", None),
+            "broadcast_rpc_address": str(getattr(host, "broadcast_rpc_address", None)),
+            "broadcast_rpc_port": getattr(host, "broadcast_rpc_port", None)
+            }
+            
+            hosts.append(host_info)
+        except:
+            pass
+
     try:
         final_metadata["cluster_name"] = session.cluster.metadata.cluster_name
+        final_metadata["hosts_info"] = hosts
         final_metadata["partitioner"] = session.cluster.metadata.partitioner
         final_metadata["dbaas"] = session.cluster.metadata.dbaas
         final_metadata["keyspaces"] = []
