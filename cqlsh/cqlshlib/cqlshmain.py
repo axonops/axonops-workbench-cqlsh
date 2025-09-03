@@ -89,7 +89,7 @@ timestampGenerator = "NOT-SET"
 currentStatementIdentifier = None
 
 # The current release version of the binaries
-CUSTOM_VERSION = '0.17.3'
+CUSTOM_VERSION = '0.17.12'
 
 # Hold the original `sys.exit` function
 original_exit = sys.exit
