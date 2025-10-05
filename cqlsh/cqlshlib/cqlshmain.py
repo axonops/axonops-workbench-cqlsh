@@ -1497,6 +1497,10 @@ class Shell(cmd.Cmd):
     def set_prompt(self, prompt, prepend_user=False):
         if prepend_user and self.username:
             self.prompt = "{0}@{1}".format(self.username, prompt)
+            # ---------- AxonOps Workbench
+            if not self.isBasic:
+                print(f"KEYWORD:USERNAME:[{self.username}]")
+            # ----------
             return
         self.prompt = prompt
 
